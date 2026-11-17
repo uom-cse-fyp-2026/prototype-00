@@ -23,18 +23,33 @@ This repository reuses the environment layout from your `mlir-quant-linear`
 project: `~/tools/torch-mlir`, `mlir_venv`, and `build/bin`. Each `./nm` invocation
 loads `env.sh` automatically; you do not need to activate the venv manually.
 
+Use the **`just` command runner** through the repository's `justfile`. Its
+recipes delegate to the environment-aware `nm` helper. Run `just` to list them.
+If `just` is not installed on Ubuntu 20.04, install the official prebuilt binary
+without changing system packages:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
+  | bash -s -- --to "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Keep that PATH entry in `~/.bashrc` for future sessions. This is the
+[official just installation method](https://just.systems/man/en/pre-built-binaries.html).
+
 ```bash
 git clone https://github.com/uom-cse-fyp-2026/prototype-00.git
 cd prototype-00
-./nm doctor
-./nm all
+just doctor
+just all
 ```
 
 For an existing checkout:
 
 ```bash
 git pull --ff-only
-./nm all
+just all
 ```
 
 Override the old project's toolchain locations if necessary:
@@ -42,8 +57,8 @@ Override the old project's toolchain locations if necessary:
 ```bash
 export TORCH_MLIR_SRC="$HOME/tools/torch-mlir"
 export TORCH_MLIR_BUILD="$TORCH_MLIR_SRC/build"
-./nm doctor
-./nm all
+just doctor
+just all
 ```
 
 `all` builds a Release executable and the MLIR pass, runs CTest, fits and freezes
@@ -55,34 +70,34 @@ first failure. A failed build/test must be fixed before claiming results.
 
 | Command | Purpose |
 |---|---|
-| `./nm doctor` | Record VM OS, CPU/ISA, RAM, compilers, tools, upstream revisions, optional NVIDIA visibility |
-| `./nm build` | Build the full torch-mlir / MLIR / LLVM implementation |
-| `./nm test` | Execute automated numerical, runtime, frontend and compiler tests |
-| `./nm metadata` | Show compiled formats, configuration version and fallback |
-| `./nm calibrate` | Fit scales, guard and measured costs; save `results/policy.nm` |
-| `./nm demo` | Show adaptive decisions and separate forced-kernel executions |
-| `./nm run --variant fp32` | Run the FP32 reference |
-| `./nm run --variant w4-reference` | Isolate the actual W4 representation with FP32 activations |
-| `./nm run --variant bf16` | Force BF16 (requires calibration policy) |
-| `./nm run --variant a8 --regime outliers` | Force A8 on an outlier input; evaluation only |
-| `./nm run --variant adaptive` | Execute the guarded runtime |
-| `./nm bench` | Compare five modes on disjoint held-out inputs |
-| `./nm summarize results` | Recompute summaries from recorded CSVs |
-| `./nm all --sampled` | Separate experiment with sampled features and a separately calibrated policy |
-| `./nm sweep` | Independently calibrate/evaluate batches 1, 4, 8, 16 |
-| `./nm collect results/<run-directory>` | Package logs, provenance and measurements for review |
+| `just doctor` | Record VM OS, CPU/ISA, RAM, compilers, tools, upstream revisions, optional NVIDIA visibility |
+| `just build` | Build the full torch-mlir / MLIR / LLVM implementation |
+| `just test` | Execute automated numerical, runtime, frontend and compiler tests |
+| `just metadata` | Show compiled formats, configuration version and fallback |
+| `just calibrate` | Fit scales, guard and measured costs; save `results/policy.nm` |
+| `just demo` | Show adaptive decisions and separate forced-kernel executions |
+| `just run --variant fp32` | Run the FP32 reference |
+| `just run --variant w4-reference` | Isolate the actual W4 representation with FP32 activations |
+| `just run --variant bf16` | Force BF16 (requires calibration policy) |
+| `just run --variant a8 --regime outliers` | Force A8 on an outlier input; evaluation only |
+| `just run --variant adaptive` | Execute the guarded runtime |
+| `just bench` | Compare five modes on disjoint held-out inputs |
+| `just summarize results` | Recompute summaries from recorded CSVs |
+| `just all --sampled` | Separate experiment with sampled features and a separately calibrated policy |
+| `just sweep` | Independently calibrate/evaluate batches 1, 4, 8, 16 |
+| `just collect results/<run-directory>` | Package logs, provenance and measurements for review |
 
 Example with different dimensions and more measurement repetitions:
 
 ```bash
-./nm all --batch 4 --input 512 --output 256 --group 32 --repeats 30
+just all --batch 4 --input 512 --output 256 --group 32 --repeats 30
 ```
 
 Direct executable options include `--samples`, `--warmup`, `--repeats`,
 `--seed`, `--policy`, `--results`, `--sampled`, and `--backend mlir|scalar`.
 Calibration and evaluation must agree on shape, group size, base seed,
 inspection mode, backend, code/compiler identity and generated configuration.
-Changing them requires a new policy. Use `./nm all` to manage these together.
+Changing them requires a new policy. Use `just all` to manage these together.
 
 ## Ubuntu 20.04 and fresh setup
 
@@ -94,8 +109,8 @@ If Docker is already available on the VM, an optional isolated compiler
 environment avoids changing the host distribution:
 
 ```bash
-./nm setup --container
-./nm all --container
+just setup --container
+just all --container
 ```
 
 This builds a CPU toolchain from the torch-mlir revision in `toolchain.lock.json`

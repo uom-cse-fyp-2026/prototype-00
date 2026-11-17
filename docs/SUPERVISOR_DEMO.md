@@ -7,10 +7,10 @@ from `mlir-quant-linear`; `./nm` activates the environment automatically.
 
 ```bash
 git pull --ff-only
-./nm doctor
-./nm build
-./nm test
-./nm metadata
+just doctor
+just build
+just test
+just metadata
 ```
 
 Show the actual CTest output. Do not describe tests as passed unless this run
@@ -20,7 +20,7 @@ assuming NVIDIA or host CPU capabilities are available to the guest.
 ## Calibrate then freeze
 
 ```bash
-./nm calibrate
+just calibrate
 ```
 
 Explain the fixed numerical budget and separate calibration/test seeds. Show
@@ -30,7 +30,7 @@ qualified. Calibration labels use reference outputs; runtime selection does not.
 ## Show the runtime interaction
 
 ```bash
-./nm demo
+just demo
 ```
 
 The demonstration supplies ordinary activations twice, a genuine outlier
@@ -60,17 +60,17 @@ work.
 ## Compare complete invocation costs
 
 ```bash
-./nm bench
-./nm summarize results
+just bench
+just summarize results
 ```
 
 Compare original FP32 reference, static BF16, static A8, guarded adaptive and
 guard-disabled ablation. Show inspection and total overhead alongside kernel
 latency; include false-safe/false-fallback results. Do not promise a speedup.
 
-For a self-contained logged run use `./nm all`. For batch comparisons use
-`./nm sweep`; each shape is independently calibrated. For sampled features use
-`./nm all --sampled` with its own policy and held-out evaluation.
+For a self-contained logged run use `just all`. For batch comparisons use
+`just sweep`; each shape is independently calibrated. For sampled features use
+`just all --sampled` with its own policy and held-out evaluation.
 
 ## Research questions to discuss
 

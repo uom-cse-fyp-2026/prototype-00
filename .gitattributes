@@ -5,4 +5,5 @@
 *.hpp text eol=lf
 *.mlir text eol=lf
 nm text eol=lf
+justfile text eol=lf
 

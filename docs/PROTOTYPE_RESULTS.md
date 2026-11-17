@@ -19,7 +19,7 @@ fabricated latency, correctness, guard-accuracy or speedup measurements.
 On the VM, run:
 
 ```bash
-./nm all
+just all
 ```
 
 The timestamped results directory contains:
@@ -40,7 +40,7 @@ quality threshold.
 
 After a successful run, report the generated measured summary together with
 CTest output. If any step fails, retain its log and fix that failure before
-claiming a working prototype. `./nm collect results/<run-directory>` packages
+claiming a working prototype. `just collect results/<run-directory>` packages
 the recorded artifacts for review.
 
 ## Findings that must remain visible
