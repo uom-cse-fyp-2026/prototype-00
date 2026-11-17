@@ -98,7 +98,7 @@ def summarize(path):
               "- False-fallback: %s / %s actually safe inputs." % (guard["false_fallback"], guard["actual_safe"]),
               "- Unsafe among accepted: %s / %s accepted inputs." % (guard["false_safe"], guard["accepted"]), ""]
     if interval:
-        lines += ["Paired bootstrap 95% interval for static-BF16/adaptive latency ratio: **%.3f to %.3f**. Values below 1 favor static BF16." % tuple(interval), ""]
+        lines += [f"Paired bootstrap 95% interval for static-BF16/adaptive latency ratio: **{interval[0]:.3f} to {interval[1]:.3f}**. Values below 1 favor static BF16.", ""]
     memory_row = rows[-1]
     lines += ["- Packed weights + FP32 group scales: %s bytes (vector capacity: %s bytes)." % (memory_row["weight_bytes"], memory_row["weight_capacity_bytes"]),
               "- Metadata reservation estimate: %s bytes; allocator bookkeeping is covered only by measured RSS." % memory_row["metadata_bytes"],

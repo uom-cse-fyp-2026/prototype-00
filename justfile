@@ -39,6 +39,10 @@ test:
 test-jobs:
     @/usr/bin/python3 tests/test_jobs.py
 
+# Check report generation with temporary synthetic fixtures; no benchmarks run.
+test-summary:
+    @/usr/bin/python3 tests/test_summary.py
+
 # Show generated configuration metadata and numerical formats.
 metadata:
     @bash ./nm metadata

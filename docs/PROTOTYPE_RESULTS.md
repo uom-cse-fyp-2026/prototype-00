@@ -1,23 +1,34 @@
 # Prototype results status
 
 No build or test was performed on the Windows authoring PC, as requested.
-The supplied Ubuntu doctor output shows system Python without torch and no
-MLIR/LLVM tools on the active path. No successful build/test/benchmark output
-has been received. Project-local setup and tmux job management have now been
-added in source. This file contains no fabricated latency, correctness,
-guard-accuracy or speedup measurements.
+The supplied VM log for job `20261117T173353858666Z-all` confirms benchmark
+execution completed and saved `experiment/benchmark.csv`. The job then failed
+in Markdown report formatting because a literal `95%` was interpreted by
+percent-style string interpolation. That formatting defect is corrected in
+source; the existing CSV can be summarized again without repeating measurements.
+Full raw artifacts and detailed test output have not yet been reviewed here.
+No missing measurements are inferred or invented.
 
 | Validation item | Current evidence |
 |---|---|
 | C++ / MLIR source | Implemented; source review only |
-| Native Ubuntu build | Pending VM execution |
-| torch-mlir frontend and compiler pass | Implemented; pending compilation/execution |
-| Automated correctness tests | Written; not run |
-| Numerical error / quality budget | Measurement code written; not measured |
-| Calibration guard | Fit/evaluation code written; no fitted policy committed |
-| Kernel and complete-invocation latency | Benchmark code written; not measured |
-| Cache/fallback behavior | Test and demonstration source written; not executed |
-| Reproducibility | CLI and provenance capture provided; end-to-end reproduction pending |
+| Native Ubuntu build | VM workflow reached benchmark execution; full build log pending review |
+| torch-mlir frontend and compiler pass | Integrated in the workflow; detailed compiler artifacts pending review |
+| Automated correctness tests | VM workflow proceeded past its test stage; detailed results pending review |
+| Numerical error / quality budget | Full numerical-error CSV pending review |
+| Calibration guard | VM benchmark printed held-out guard counts; policy/artifacts pending review |
+| Kernel and complete-invocation latency | Benchmark completion excerpt received; full CSV pending review |
+| Cache/fallback behavior | Detailed trace pending review |
+| Reproducibility | Original run failed in reporting; summary recovery available from saved CSV |
+
+Recover the report for that existing run on the VM:
+
+```bash
+just summarize results/jobs/20261117T173353858666Z-all/experiment
+```
+
+This writes `summary.md` and `summary.json` from saved data. The original job's
+failed status remains an accurate historical record of its reporting failure.
 
 On the VM, run:
 

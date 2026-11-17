@@ -12,10 +12,11 @@ a custom `nm-prepare-executors` MLIR pass that generates the runtime risk guard,
 and MLIR → LLVM IR → native object lowering. Activation inspection, typed plans,
 bounded caching and conservative fallback are implemented in C++.
 
-**Status:** source authored on Windows; no builds or tests run on the authoring
-PC. The supplied VM doctor output shows the environment was not initialized
-(system Python had no torch and MLIR tools were absent). A successful prototype
-build, numerical validation and benchmark results are still pending VM execution.
+**Status:** no builds or tests run on the Windows authoring PC. The supplied VM
+workflow has now reached benchmark execution and saved its CSV measurements.
+It then failed in report formatting; that defect is corrected in source, and
+the report can be regenerated from the existing run without repeating the
+benchmark. Detailed raw artifacts and full validation output remain to be reviewed.
 
 ## Project-local dependencies
 

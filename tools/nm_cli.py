@@ -184,7 +184,6 @@ def all_steps(args, sweep=False):
         run([binary(), "calibrate", *common, "--samples", a.calibration_samples], log)
         run([binary(), "demo", *common], log)
         run([binary(), "bench", *common, "--samples", a.samples], log)
-        run([sys.executable, ROOT / "tools/summarize.py", destination], log)
         provenance = destination / "compiler"
         provenance.mkdir(exist_ok=True)
         for filename in ("build_manifest.json", "compiler_manifest.json", "linear.torch.mlir", "linear.linalg.mlir",
@@ -200,6 +199,8 @@ def all_steps(args, sweep=False):
         for filename in ("host-explicit-linux-64.txt", "host-spec.sha256", "python-freeze.txt", "micromamba.sha256"):
             if (bootstrap / filename).is_file():
                 shutil.copyfile(bootstrap / filename, provenance / filename)
+        # Preserve compiler provenance even if later report formatting fails.
+        run([sys.executable, ROOT / "tools/summarize.py", destination], log)
     print("\nCompleted VM workflow. Results: " + str(target))
 
 
