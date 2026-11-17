@@ -36,6 +36,8 @@ user-space toolchain through project-local micromamba, creates `.venv`, installs
 the pinned upstream Python requirements there, then builds this project's own
 LLVM/MLIR/torch-mlir. It does not change shell startup files or system packages.
 Build parallelism defaults to four jobs with one linker job.
+For a larger VM, `just setup-fast 16 2` starts detached setup with 16 build jobs
+and two concurrent link jobs. See the setup guide before changing an active job.
 
 ## First setup on the VM
 
@@ -95,6 +97,7 @@ touch other projects' sessions. Only one managed job is allowed per checkout.
 | `just` | List commands |
 | `just doctor` | Inspect project dependency status, OS, CPU/ISA, RAM, tools and GPU visibility |
 | `just setup` / `just setup-bg` | Set up isolated dependencies, attached/detached |
+| `just setup-fast 16 2` | Detached setup using more CPU parallelism |
 | `just run` / `just start` | Full experiment, attached/detached |
 | `just attach` / `just fg` | Reconnect to the latest job |
 | `just status` / `just logs` / `just jobs` | Inspect actual state, output and history |

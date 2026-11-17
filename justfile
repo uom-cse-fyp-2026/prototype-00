@@ -19,6 +19,10 @@ setup *args:
 setup-bg *args:
     @/usr/bin/python3 tools/jobs.py start --detach setup "$@"
 
+# Detached setup with more CPU parallelism; customize: just setup-fast 24 2.
+setup-fast jobs="16" links="2":
+    @JOBS="$1" LINK_JOBS="$2" /usr/bin/python3 tools/jobs.py start --detach setup
+
 # Foreground setup with the command's actual exit code (no tmux).
 setup-fg *args:
     @bash ./nm setup "$@"

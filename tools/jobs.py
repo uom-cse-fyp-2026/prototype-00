@@ -105,6 +105,12 @@ def start(task, arguments, detached):
         raise ValueError("unsupported background task: " + task)
     if not shutil.which("tmux"):
         raise RuntimeError("Install tmux on the VM: sudo apt-get install tmux")
+    build_environment = {}
+    for variable in ("JOBS", "LINK_JOBS"):
+        if variable in os.environ:
+            if not re.fullmatch(r"[1-9][0-9]*", os.environ[variable]):
+                raise ValueError(variable + " must be a positive integer")
+            build_environment[variable] = os.environ[variable]
     CONTROL.mkdir(exist_ok=True)
     JOBS.mkdir(parents=True, exist_ok=True)
     with (CONTROL / "job-start.lock").open("a") as lock:
@@ -119,7 +125,8 @@ def start(task, arguments, detached):
         directory.mkdir()
         state = {"id": job_id, "task": task, "arguments": arguments, "status": "starting",
                  "created_at_utc": now(), "session": "nm-" + job_id, "socket": SOCKET,
-                 "root": str(ROOT), "log": str(directory / "console.log"), "exit_code": None}
+                 "root": str(ROOT), "log": str(directory / "console.log"), "exit_code": None,
+                 "build_environment": build_environment}
         write_json(directory / "state.json", state)
         write_json(LATEST, {"id": job_id})
         worker = "exec " + " ".join(shlex.quote(str(arg)) for arg in
@@ -149,6 +156,13 @@ def worker(job):
     write_json(directory / "state.json", state)
     command = ["bash", str(ROOT / "nm"), state["task"], *state["arguments"]]
     environment = os.environ.copy()
+    # A reused tmux server can retain its original environment. Apply the
+    # launcher's explicit build limits from the job record instead of relying on it.
+    for variable in ("JOBS", "LINK_JOBS"):
+        if variable in state.get("build_environment", {}):
+            environment[variable] = state["build_environment"][variable]
+        else:
+            environment.pop(variable, None)
     environment["NM_JOB_ID"] = job
     environment["PYTHONUNBUFFERED"] = "1"
     child = None
@@ -253,6 +267,8 @@ def status():
         label = "interrupted (worker/session is gone; not a successful completion)"
     print("Job: %s\nTask: %s\nStatus: %s\nExit status: %s\nLog: %s" %
           (state["id"], state["task"], label, state["exit_code"], state["log"]))
+    if state.get("build_environment"):
+        print("Requested build limits: " + json.dumps(state["build_environment"], sort_keys=True))
     log = directory / "console.log"
     if log.exists():
         with log.open("rb") as stream:

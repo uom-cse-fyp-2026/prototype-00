@@ -4,8 +4,9 @@ set -euo pipefail
 NM_SETUP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export NM_ENV_ROOT="${NM_ENV_ROOT:-$NM_SETUP_ROOT}"
 NM_SETUP_JOBS="${JOBS:-4}"
-if [[ $# -ne 0 || ! "$NM_SETUP_JOBS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "setup takes no arguments; set JOBS=N to control build parallelism" >&2
+NM_LINK_JOBS="${LINK_JOBS:-1}"
+if [[ $# -ne 0 || ! "$NM_SETUP_JOBS" =~ ^[1-9][0-9]*$ || ! "$NM_LINK_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "setup takes no arguments; set JOBS=N and LINK_JOBS=N to control parallelism" >&2
   exit 2
 fi
 if [[ "$(uname -s)" != Linux || "$(uname -m)" != x86_64 ]]; then
@@ -18,6 +19,8 @@ for NM_REQUIRED in git curl tar bzip2 /usr/bin/python3; do
     exit 1
   }
 done
+echo "Setup: isolated Python/compiler packages, source checkout, Python requirements, then LLVM/MLIR/torch-mlir compilation."
+echo "Build limits: $NM_SETUP_JOBS total build jobs; $NM_LINK_JOBS concurrent link jobs. GPU is not used for compilation."
 NM_BOOTSTRAP="$NM_ENV_ROOT/.deps/bootstrap"
 NM_MICROMAMBA="$NM_BOOTSTRAP/bin/micromamba"
 export MAMBA_ROOT_PREFIX="$NM_ENV_ROOT/.deps/mamba-root"
@@ -68,6 +71,7 @@ PY
 mv "$NM_BOOTSTRAP/host-explicit-linux-64.txt.tmp" "$NM_BOOTSTRAP/host-explicit-linux-64.txt"
 source "$NM_SETUP_ROOT/env.sh"
 
+echo "Setup stage: fetching the pinned torch-mlir and LLVM sources"
 if [[ ! -d "$NM_SOURCE" ]]; then
   git clone --filter=blob:none https://github.com/llvm/torch-mlir.git "$NM_SOURCE"
   git -C "$NM_SOURCE" checkout --detach "$NM_UPSTREAM_REV"
@@ -89,6 +93,7 @@ if [[ ! -f "$NM_TARGET_VENV/bin/activate" ]]; then
   NM_NEW_VENV=1
 fi
 source "$NM_SETUP_ROOT/env.sh"
+echo "Setup stage: installing/reusing project Python requirements"
 NM_REQUIREMENTS_HASH="$(sha256sum "$NM_SOURCE/requirements.txt" "$NM_SOURCE/pytorch-requirements.txt" "$NM_SOURCE/build-requirements.txt" "$NM_SOURCE/test-requirements.txt" | sha256sum | cut -d' ' -f1)"
 if [[ "$NM_NEW_VENV" == 1 || ! -f "$NM_BOOTSTRAP/python-spec.sha256" || "$(cat "$NM_BOOTSTRAP/python-spec.sha256")" != "$NM_REQUIREMENTS_HASH" ]]; then
   "$NM_PYTHON" -m pip install --upgrade pip
@@ -96,6 +101,7 @@ if [[ "$NM_NEW_VENV" == 1 || ! -f "$NM_BOOTSTRAP/python-spec.sha256" || "$(cat "
   "$NM_PYTHON" -m pip freeze > "$NM_BOOTSTRAP/python-freeze.txt"
   printf '%s\n' "$NM_REQUIREMENTS_HASH" > "$NM_BOOTSTRAP/python-spec.sha256"
 fi
+echo "Setup stage: configuring and compiling LLVM/MLIR/torch-mlir ($NM_SETUP_JOBS jobs, $NM_LINK_JOBS link jobs)"
 cmake -S "$NM_SOURCE/externals/llvm-project/llvm" -B "$NM_BUILD" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
@@ -104,19 +110,21 @@ cmake -S "$NM_SOURCE/externals/llvm-project/llvm" -B "$NM_BUILD" -G Ninja \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON -DPython3_FIND_VIRTUALENV=ONLY \
   -DPython3_EXECUTABLE="$NM_PYTHON" -DPython_EXECUTABLE="$NM_PYTHON" \
   -DTORCH_MLIR_ENABLE_STABLEHLO=OFF -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=OFF \
-  -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_LLD=OFF -DLLVM_USE_LINKER=lld
+  -DLLVM_PARALLEL_LINK_JOBS="$NM_LINK_JOBS" -DLLVM_ENABLE_LLD=OFF -DLLVM_USE_LINKER=lld
 cmake --build "$NM_BUILD" --parallel "$NM_SETUP_JOBS"
 source "$NM_SETUP_ROOT/env.sh"
 "$NM_PYTHON" -c 'import torch, torch_mlir; print("torch:", torch.__version__); print("torch_mlir:", torch_mlir.__file__)'
-"$NM_PYTHON" - "$NM_ENV_ROOT/.nm/setup-complete.json" "$NM_SOURCE" <<'PY'
+"$NM_PYTHON" - "$NM_ENV_ROOT/.nm/setup-complete.json" "$NM_SOURCE" "$NM_SETUP_JOBS" "$NM_LINK_JOBS" <<'PY'
 import datetime, json, subprocess, sys
 from pathlib import Path
-target, source = map(Path, sys.argv[1:])
+target, source = map(Path, sys.argv[1:3])
 target.write_text(json.dumps({
     "completed_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "torch_mlir_revision": subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip(),
     "llvm_revision": subprocess.check_output(["git", "-C", str(source / "externals/llvm-project"), "rev-parse", "HEAD"], text=True).strip(),
     "python": sys.executable,
+    "build_jobs": int(sys.argv[3]),
+    "link_jobs": int(sys.argv[4]),
 }, indent=2) + "\n")
 PY
 echo "Project-local setup completed. Next: just run (tmux) or just all (foreground)."

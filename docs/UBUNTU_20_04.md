@@ -96,6 +96,37 @@ uses four compile jobs by default and one linker job. For a smaller machine:
 JOBS=2 just setup
 ```
 
+### Faster compilation on a larger VM
+
+`setup-bg` changes how setup is launched, not how fast it compiles. Default
+setup uses four build jobs and one concurrent linker. On the supplied
+80-logical-CPU / 62-GiB machine, start with:
+
+```bash
+just setup-fast 16 2
+```
+
+This is detached setup with 16 total build jobs and two concurrent link jobs.
+If memory remains comfortable, `just setup-fast 24 2` uses more CPU parallelism.
+The explicit values are saved in the job record and forwarded to the worker
+even if a tmux server already exists. `just status` shows the requested limits.
+More jobs do not guarantee proportional speedup; heavy compiler/link processes
+also consume RAM and memory bandwidth.
+
+To change limits on an already running setup, use `just stop`, wait until
+`just status` shows it has stopped, update the checkout, then launch the faster
+setup. Completed object files and installed packages are reused; an in-progress
+compilation may need to be repeated. Never run two Ninja builds in the same
+build directory concurrently. Only compile/link parallelism is changed; the
+Release build, assertions and numerical behavior are retained.
+
+These limits speed up compilation, not network downloads or package solving.
+`just status`/`just logs` show whether setup is fetching packages/sources or
+compiling C++. The NVIDIA GPU does not accelerate this host C++ toolchain build.
+
+See [LLVM build configuration](https://llvm.org/docs/CMake.html) for its build
+parallelism and linker-pool controls.
+
 The torch-mlir revision is fixed in `toolchain.lock.json`, along with the
 bootstrap version; LLVM follows that revision's submodule. If a pinned PyTorch
 nightly wheel is unavailable, setup fails visibly. The exact toolchain pair

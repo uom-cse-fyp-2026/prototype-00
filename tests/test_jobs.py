@@ -53,12 +53,14 @@ class JobControlTests(unittest.TestCase):
             with mock.patch.object(jobs, "ROOT", root), mock.patch.object(jobs, "CONTROL", control), \
                     mock.patch.object(jobs, "JOBS", directory), mock.patch.object(jobs, "LATEST", control / "latest-job.json"), \
                     mock.patch.object(jobs.shutil, "which", return_value="/usr/bin/tmux"), \
-                    mock.patch.object(jobs, "tmux") as tmux, contextlib.redirect_stdout(io.StringIO()):
+                    mock.patch.object(jobs, "tmux") as tmux, \
+                    mock.patch.dict(os.environ, {"JOBS": "16", "LINK_JOBS": "2"}), contextlib.redirect_stdout(io.StringIO()):
                 args = ["--results", "two words; $(touch sentinel)"]
                 jobs.start("all", args, True)
                 _, state = jobs.read_state()
                 self.assertEqual(state["arguments"], args)
                 self.assertEqual(state["status"], "starting")
+                self.assertEqual(state["build_environment"], {"JOBS": "16", "LINK_JOBS": "2"})
                 self.assertFalse((root / "sentinel").exists())
                 self.assertEqual(tmux.call_args.args[0], "new-session")
 
