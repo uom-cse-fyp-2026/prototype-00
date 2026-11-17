@@ -164,6 +164,10 @@ Only one managed job runs per checkout. The runner uses a tmux socket derived
 from this checkout's absolute path and tmux's default key bindings (no shared
 tmux config); other projects' tmux sessions are untouched. Job records from
 another checkout are rejected before sending process-control signals.
+Replacement jobs are created before old completed sessions are removed, so
+tmux is not restarted while its last session is being deleted. A retained
+placeholder pane is configured before the worker starts. Launch errors and
+their exit status are saved in the job log and shown by `just status`.
 Native children run in a dedicated process group so stopping a job can stop
 compiler/kernel subprocesses too. Exit codes and failure logs persist after
 the pane closes. Reboots, host shutdowns, and administrator process cleanup

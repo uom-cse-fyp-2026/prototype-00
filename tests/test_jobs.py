@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -62,7 +63,47 @@ class JobControlTests(unittest.TestCase):
                 self.assertEqual(state["status"], "starting")
                 self.assertEqual(state["build_environment"], {"JOBS": "16", "LINK_JOBS": "2"})
                 self.assertFalse((root / "sentinel").exists())
-                self.assertEqual(tmux.call_args.args[0], "new-session")
+                commands = [call.args[0] for call in tmux.call_args_list]
+                self.assertEqual(commands, ["new-session", "set-option", "respawn-pane"])
+                self.assertEqual(tmux.call_args_list[0].args[-1], "exec /bin/sleep 86400")
+
+    def test_replacement_is_launched_before_old_session_is_killed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = {"id": "previous", "status": "succeeded", "session": "old-session"}
+            with mock.patch.object(jobs, "ROOT", root), mock.patch.object(jobs, "CONTROL", root / ".nm"), \
+                    mock.patch.object(jobs, "JOBS", root / "jobs"), mock.patch.object(jobs, "LATEST", root / ".nm/latest-job.json"), \
+                    mock.patch.object(jobs.shutil, "which", return_value="/usr/bin/tmux"), \
+                    mock.patch.object(jobs, "guard"), mock.patch.object(jobs, "read_state", return_value=(None, old)), \
+                    mock.patch.object(jobs, "session_exists", return_value=True), \
+                    mock.patch.object(jobs, "is_running", return_value=False), \
+                    mock.patch.object(jobs, "tmux") as tmux, contextlib.redirect_stdout(io.StringIO()):
+                jobs.start("all", [], True)
+                commands = [call.args[0] for call in tmux.call_args_list]
+                self.assertEqual(commands, ["new-session", "set-option", "respawn-pane", "kill-session"])
+                self.assertEqual(tmux.call_args.args[-1], "=old-session")
+
+    def test_dead_startup_pane_does_not_block_retry(self):
+        with mock.patch.object(jobs, "session_exists", return_value=True), \
+                mock.patch.object(jobs, "tmux", return_value=SimpleNamespace(returncode=0, stdout="1\n")):
+            self.assertFalse(jobs.is_running({"status": "starting", "session": "owned"}))
+
+    def test_launch_error_is_saved_and_old_session_is_not_killed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            error = jobs.subprocess.CalledProcessError(1, ["tmux"], stderr="server exited unexpectedly")
+            with mock.patch.object(jobs, "ROOT", root), mock.patch.object(jobs, "CONTROL", root / ".nm"), \
+                    mock.patch.object(jobs, "JOBS", root / "jobs"), mock.patch.object(jobs, "LATEST", root / ".nm/latest-job.json"), \
+                    mock.patch.object(jobs.shutil, "which", return_value="/usr/bin/tmux"), \
+                    mock.patch.object(jobs, "session_exists", return_value=False), \
+                    mock.patch.object(jobs, "tmux", side_effect=error) as tmux:
+                with self.assertRaisesRegex(RuntimeError, "server exited unexpectedly"):
+                    jobs.start("all", [], True)
+                directory, state = jobs.read_state()
+                self.assertEqual(state["status"], "failed_to_start")
+                self.assertEqual(state["exit_code"], 1)
+                self.assertIn("server exited unexpectedly", (directory / "console.log").read_text())
+                self.assertEqual([call.args[0] for call in tmux.call_args_list], ["new-session"])
 
     def test_duplicate_start_does_not_launch_tmux(self):
         with tempfile.TemporaryDirectory() as tmp:

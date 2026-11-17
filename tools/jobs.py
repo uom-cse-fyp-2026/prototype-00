@@ -90,7 +90,13 @@ def is_running(state):
         return False
     if state.get("worker_pid"):
         return worker_alive(state) or child_alive(state)
-    return session_exists(state["session"])
+    if not session_exists(state["session"]):
+        return False
+    # A failed startup may leave a dead pane but no worker PID. It must not
+    # prevent retries merely because remain-on-exit retained the session.
+    pane = tmux("display-message", "-p", "-t", state["session"] + ":task", "#{pane_dead}",
+                check=False, capture=True)
+    return pane.returncode == 0 and pane.stdout.strip() == "0"
 
 
 def guard():
@@ -117,9 +123,6 @@ def start(task, arguments, detached):
         fcntl.flock(lock, fcntl.LOCK_EX)
         guard()
         old_directory, old_state = read_state()
-        if old_state and session_exists(old_state["session"]) and not is_running(old_state):
-            # The previous pane is this runner's completed session. Logs remain on disk.
-            tmux("kill-session", "-t", "=" + old_state["session"], check=False, capture=True)
         job_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + task
         directory = JOBS / job_id
         directory.mkdir()
@@ -128,15 +131,38 @@ def start(task, arguments, detached):
                  "root": str(ROOT), "log": str(directory / "console.log"), "exit_code": None,
                  "build_environment": build_environment}
         write_json(directory / "state.json", state)
-        write_json(LATEST, {"id": job_id})
+        (directory / "console.log").write_text("[%s] Starting tmux job %s\n" % (now(), job_id))
         worker = "exec " + " ".join(shlex.quote(str(arg)) for arg in
                                     (sys.executable, Path(__file__).resolve(), "worker", job_id))
         try:
-            tmux("new-session", "-d", "-s", state["session"], "-n", "task", "-c", ROOT, worker)
-        except subprocess.CalledProcessError:
-            state.update(status="failed_to_start", ended_at_utc=now())
+            # Keep the existing completed session alive until its replacement
+            # exists. Killing the last session first races tmux's server exit.
+            # A placeholder also prevents an instant worker exit from destroying
+            # the new session before remain-on-exit has been configured.
+            tmux("new-session", "-d", "-s", state["session"], "-n", "task", "-c", ROOT,
+                 "exec /bin/sleep 86400", capture=True)
+            write_json(LATEST, {"id": job_id})
+            tmux("set-option", "-w", "-t", state["session"] + ":task", "remain-on-exit", "on", capture=True)
+            tmux("respawn-pane", "-k", "-t", state["session"] + ":task", worker, capture=True)
+        except subprocess.CalledProcessError as error:
+            _, current = read_state(job_id)
+            message = (error.stderr or error.stdout or str(error)).strip()
+            with (directory / "console.log").open("a") as log:
+                log.write("\nTmux launch failed: " + message + "\n")
+            if worker_alive(current) or child_alive(current):
+                # An interrupted control connection is not proof the worker
+                # failed. Keep its live PID/state and prevent a duplicate start.
+                raise RuntimeError("Tmux control failed, but the job process is alive. Use just status/logs: " + message) from error
+            state.update(status="failed_to_start", exit_code=error.returncode, ended_at_utc=now(), error=message)
             write_json(directory / "state.json", state)
-            raise
+            write_json(LATEST, {"id": job_id})
+            if session_exists(state["session"]):
+                tmux("kill-session", "-t", "=" + state["session"], check=False, capture=True)
+            raise RuntimeError("Tmux could not launch the job. Details saved in %s: %s" % (state["log"], message)) from error
+        if old_state and session_exists(old_state["session"]) and not is_running(old_state):
+            # The replacement now retains its pane, so removing the old session
+            # cannot leave the server with no sessions. Historical logs remain.
+            tmux("kill-session", "-t", "=" + old_state["session"], check=False, capture=True)
     print("Started %s: %s" % (job_id, task), flush=True)
     print("Log: %s\nDetach: Ctrl+B, then D. Reconnect: just attach. Status: just status." % state["log"], flush=True)
     if not detached:
@@ -150,7 +176,7 @@ def start(task, arguments, detached):
 
 def worker(job):
     directory, state = read_state(job)
-    tmux("set-option", "-w", "-t", state["session"] + ":task", "remain-on-exit", "on")
+    # The launcher configures the retained pane before respawning this worker.
     state.update(status="running", started_at_utc=now(), worker_pid=os.getpid(),
                  worker_start_ticks=process_identity(os.getpid()))
     write_json(directory / "state.json", state)
@@ -269,6 +295,8 @@ def status():
           (state["id"], state["task"], label, state["exit_code"], state["log"]))
     if state.get("build_environment"):
         print("Requested build limits: " + json.dumps(state["build_environment"], sort_keys=True))
+    if state.get("error"):
+        print("Error: " + state["error"])
     log = directory / "console.log"
     if log.exists():
         with log.open("rb") as stream:

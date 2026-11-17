@@ -91,7 +91,7 @@ def doctor():
     report["thread_environment"] = {key: os.environ.get(key) for key in
                                     ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS")}
     commands = [["uname", "-a"], ["lscpu"], ["free", "-h"], ["df", "-h", str(ROOT)], ["gcc", "--version"], ["clang", "--version"],
-                ["cmake", "--version"], ["mlir-opt", "--version"], ["opt", "--version"], ["llc", "--version"], ["nvidia-smi"],
+                ["cmake", "--version"], ["mlir-opt", "--version"], ["opt", "--version"], ["llc", "--version"], ["tmux", "-V"], ["nvidia-smi"],
                 [sys.executable, "-m", "pip", "freeze"],
                 [sys.executable, "-c", "import torch, torch_mlir; print('torch:',torch.__version__); print('torch_mlir:',torch_mlir.__file__)"]]
     for variable in ("CC", "CXX"):
