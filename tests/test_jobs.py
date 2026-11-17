@@ -63,9 +63,12 @@ class JobControlTests(unittest.TestCase):
                 self.assertEqual(state["status"], "starting")
                 self.assertEqual(state["build_environment"], {"JOBS": "16", "LINK_JOBS": "2"})
                 self.assertFalse((root / "sentinel").exists())
-                commands = [call.args[0] for call in tmux.call_args_list]
+                # Bootstrap Python may have an older unittest.mock: unpack
+                # (positional_args, keyword_args) instead of accessing .args.
+                commands = [positional[0] for positional, _keywords in tmux.call_args_list]
                 self.assertEqual(commands, ["new-session", "set-option", "respawn-pane"])
-                self.assertEqual(tmux.call_args_list[0].args[-1], "exec /bin/sleep 86400")
+                first_positional, _keywords = tmux.call_args_list[0]
+                self.assertEqual(first_positional[-1], "exec /bin/sleep 86400")
 
     def test_replacement_is_launched_before_old_session_is_killed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -79,9 +82,10 @@ class JobControlTests(unittest.TestCase):
                     mock.patch.object(jobs, "is_running", return_value=False), \
                     mock.patch.object(jobs, "tmux") as tmux, contextlib.redirect_stdout(io.StringIO()):
                 jobs.start("all", [], True)
-                commands = [call.args[0] for call in tmux.call_args_list]
+                commands = [positional[0] for positional, _keywords in tmux.call_args_list]
                 self.assertEqual(commands, ["new-session", "set-option", "respawn-pane", "kill-session"])
-                self.assertEqual(tmux.call_args.args[-1], "=old-session")
+                last_positional, _keywords = tmux.call_args
+                self.assertEqual(last_positional[-1], "=old-session")
 
     def test_dead_startup_pane_does_not_block_retry(self):
         with mock.patch.object(jobs, "session_exists", return_value=True), \
@@ -103,7 +107,7 @@ class JobControlTests(unittest.TestCase):
                 self.assertEqual(state["status"], "failed_to_start")
                 self.assertEqual(state["exit_code"], 1)
                 self.assertIn("server exited unexpectedly", (directory / "console.log").read_text())
-                self.assertEqual([call.args[0] for call in tmux.call_args_list], ["new-session"])
+                self.assertEqual([positional[0] for positional, _keywords in tmux.call_args_list], ["new-session"])
 
     def test_duplicate_start_does_not_launch_tmux(self):
         with tempfile.TemporaryDirectory() as tmp:
