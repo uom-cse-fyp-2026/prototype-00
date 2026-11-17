@@ -1,0 +1,9 @@
+.git
+.tools
+.venv
+.deps
+.nm
+build
+build-container
+results
+__pycache__

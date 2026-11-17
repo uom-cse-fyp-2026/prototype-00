@@ -1,0 +1,13 @@
+.tools/
+.venv/
+.deps/
+.nm/
+build/
+build-container/
+__pycache__/
+*.pyc
+results/*
+!results/README.md
+*.o
+*.so
+

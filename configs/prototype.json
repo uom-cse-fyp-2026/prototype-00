@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "configuration_version": 1,
+  "operator": "linear_without_bias",
+  "weight_format": "signed_w4_row_packed_group_symmetric",
+  "quantized_weight_range": [-7, 7],
+  "activation_policy": "calibration_fixed_symmetric_a8",
+  "activation_range": [-127, 127],
+  "activation_calibration_quantile": 0.9995,
+  "error_budget": 0.03,
+  "relative_l2_epsilon": 1e-12,
+  "max_calibration_false_safe_rate": 0.0,
+  "minimum_guard_accepts": 8,
+  "performance_margin": 0.05,
+  "cache_capacity": 16,
+  "sample_size": 128,
+  "memory_budget_bytes": 536870912,
+  "shape_limits": {"batch": 4096, "input": 16384, "output": 16384, "group": 65536},
+  "defaults": {"batch": 1, "input": 512, "output": 256, "group": 32, "seed": 4533},
+  "variants": [
+    {"id": 1, "name": "w4_bf16", "activation": "bf16", "accumulator": "f32", "approved": true},
+    {"id": 2, "name": "w4_a8", "activation": "i8", "accumulator": "i32_per_group_then_f32", "approved": true}
+  ],
+  "fallback_variant": 1,
+  "guard_policy": "calibrated_max_abs_and_clipping_fraction",
+  "plan_validity": "shape_config_policy_backend_and_current_descriptor"
+}
