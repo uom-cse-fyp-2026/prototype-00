@@ -2,5 +2,5 @@
 set -euo pipefail
 NM_COMMAND_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$NM_COMMAND_ROOT/env.sh"
-exec python3 "$NM_COMMAND_ROOT/tools/nm_cli.py" "$@"
+exec "$NM_PYTHON" "$NM_COMMAND_ROOT/tools/nm_cli.py" "$@"
 

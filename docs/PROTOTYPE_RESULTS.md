@@ -1,8 +1,11 @@
 # Prototype results status
 
 No build or test was performed on the Windows authoring PC, as requested.
-No Ubuntu VM execution results have been received. This file contains no
-fabricated latency, correctness, guard-accuracy or speedup measurements.
+The supplied Ubuntu doctor output shows system Python without torch and no
+MLIR/LLVM tools on the active path. No successful build/test/benchmark output
+has been received. Project-local setup and tmux job management have now been
+added in source. This file contains no fabricated latency, correctness,
+guard-accuracy or speedup measurements.
 
 | Validation item | Current evidence |
 |---|---|

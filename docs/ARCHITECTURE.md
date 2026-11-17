@@ -3,6 +3,12 @@
 The unit of adaptation is one contiguous, bias-free CPU projection
 `X[M,K] * W[N,K]^T -> Y[M,N]`. Weights stay W4 throughout an experiment.
 
+Toolchain and Python dependencies are owned by this checkout under `.deps`
+and `.venv`. The VM job runner uses a dedicated tmux socket and records
+console logs and exit status; SSH disconnect/reconnect does not change the
+numerical runtime architecture. Background orchestration is outside timed
+operator invocations.
+
 ```mermaid
 flowchart TD
   T[PyTorch linear operator] --> TM[torch-mlir FX import and Linalg artifact]

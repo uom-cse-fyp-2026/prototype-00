@@ -4,6 +4,9 @@
   "llvm_revision": "from_torch_mlir_git_submodule",
   "python_minimum": "3.10",
   "gcc_minimum": "12.2",
+  "micromamba_version": "2.0.5",
+  "host_environment": "configs/host-environment.yml",
+  "environment_layout": "project .venv and .deps only; exact host packages recorded on the VM",
   "container_base": "ubuntu:24.04",
   "notes": "Upstream Python requirements are read from this exact revision. A missing pinned nightly wheel is a setup error; do not substitute another torch version silently."
 }

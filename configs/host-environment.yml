@@ -1,0 +1,17 @@
+# Exact resolved package URLs/builds are recorded on the VM under .deps/bootstrap/.
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - gcc_linux-64=13
+  - gxx_linux-64=13
+  - cmake=3.29
+  - ninja=1.12
+  - lld=18
+  - pkg-config
+  - git
+  - curl
+  - libffi
+  - zlib
+  - zstd
+  - libxml2

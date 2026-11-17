@@ -4,6 +4,7 @@
 *.cpp text eol=lf
 *.hpp text eol=lf
 *.mlir text eol=lf
+*.yml text eol=lf
 nm text eol=lf
 justfile text eol=lf
 

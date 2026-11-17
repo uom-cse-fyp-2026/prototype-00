@@ -47,12 +47,20 @@ def build(args=()):
                "-DPython3_EXECUTABLE=" + sys.executable, "-DNM_CONFIG=" + str(Path(a.config).resolve()),
                "-DNM_ENABLE_MLIR=" + ("OFF" if a.scalar_only else "ON"),
                "-DNM_SANITIZERS=" + ("ON" if a.sanitizers else "OFF")]
+    for variable, environment in (("CMAKE_C_COMPILER", "CC"), ("CMAKE_CXX_COMPILER", "CXX")):
+        if os.environ.get(environment):
+            command.append("-D" + variable + "=" + os.environ[environment])
     if not a.scalar_only:
         prefix = Path(os.environ["TORCH_MLIR_BUILD"])
+        if not (prefix / "bin/mlir-opt").is_file() or not (Path(os.environ["NM_VENV"]) / "bin/python").is_file() or \
+                not (Path(os.environ["NM_ENV_ROOT"]) / ".nm/setup-complete.json").is_file():
+            raise RuntimeError("Project-local compiler/Python stack is not ready. Run just setup, then check just status before just run.")
         command += ["-DNM_LLVM_BIN=" + str(prefix / "bin"), "-DMLIR_DIR=" + str(prefix / "lib/cmake/mlir"),
                     "-DLLVM_DIR=" + str(prefix / "lib/cmake/llvm")]
-        # Reuse the compiler that built the user's already working LLVM tree.
-        # This avoids accidentally selecting Ubuntu 20.04's older default GCC.
+        for variable, tool in (("NM_MLIR_OPT", "mlir-opt"), ("NM_MLIR_TRANSLATE", "mlir-translate"),
+                               ("NM_LLC", "llc"), ("NM_LLVM_OPT", "opt")):
+            command.append("-D" + variable + "=" + str(prefix / "bin" / tool))
+        # Use the same project-local compiler as the upstream LLVM build.
         upstream_cache = prefix / "CMakeCache.txt"
         if upstream_cache.exists():
             lines = upstream_cache.read_text().splitlines()
@@ -73,15 +81,23 @@ def doctor():
     directory.mkdir(exist_ok=True)
     report = {"platform": platform.platform(), "python": sys.version, "python_executable": sys.executable,
               "logical_cores": os.cpu_count(), "toolchain_source": os.environ.get("TORCH_MLIR_SRC"),
-              "toolchain_build": os.environ.get("TORCH_MLIR_BUILD"), "commands": {}}
+              "toolchain_build": os.environ.get("TORCH_MLIR_BUILD"),
+              "environment_root": os.environ.get("NM_ENV_ROOT"), "project_venv": os.environ.get("NM_VENV"),
+              "local_host_prefix": os.environ.get("NM_HOST_PREFIX"),
+              "active_compilers": {"CC": os.environ.get("CC"), "CXX": os.environ.get("CXX")},
+              "project_setup_completed": (Path(os.environ["NM_ENV_ROOT"]) / ".nm/setup-complete.json").is_file(), "commands": {}}
     if hasattr(os, "sched_getaffinity"):
         report["allowed_cpu_affinity"] = sorted(os.sched_getaffinity(0))
     report["thread_environment"] = {key: os.environ.get(key) for key in
                                     ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS")}
-    commands = [["uname", "-a"], ["lscpu"], ["free", "-h"], ["gcc", "--version"], ["clang", "--version"],
+    commands = [["uname", "-a"], ["lscpu"], ["free", "-h"], ["df", "-h", str(ROOT)], ["gcc", "--version"], ["clang", "--version"],
                 ["cmake", "--version"], ["mlir-opt", "--version"], ["opt", "--version"], ["llc", "--version"], ["nvidia-smi"],
                 [sys.executable, "-m", "pip", "freeze"],
                 [sys.executable, "-c", "import torch, torch_mlir; print('torch:',torch.__version__); print('torch_mlir:',torch_mlir.__file__)"]]
+    for variable in ("CC", "CXX"):
+        if os.environ.get(variable):
+            commands.append([os.environ[variable], "--version"])
+    print("Project environment: %s\nActive compilers: %s" % (report["environment_root"], report["active_compilers"]))
     for command in commands:
         if not shutil.which(command[0]):
             value = "not installed/on PATH"
@@ -106,6 +122,8 @@ def doctor():
                            "note": "Presence does not prove guest access or reliable counters. No thermal, power, energy or perf-counter measurements are claimed."}
     (directory / "environment.json").write_text(json.dumps(report, indent=2) + "\n")
     print("Saved results/environment.json")
+    if not report["project_setup_completed"]:
+        print("Project setup has not completed. Run just setup (or just setup-bg), then just status. Global torch/LLVM installations are not used.")
 
 
 def binary():
@@ -137,7 +155,9 @@ def all_steps(args, sweep=False):
     p.add_argument("--warmup", type=int, default=3)
     p.add_argument("--sampled", action="store_true")
     p.add_argument("--backend", choices=("mlir", "scalar"), default="mlir")
-    p.add_argument("--results", default="results/run-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S"))
+    default_results = ("results/jobs/" + os.environ["NM_JOB_ID"] + "/experiment") if os.environ.get("NM_JOB_ID") else \
+        "results/run-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    p.add_argument("--results", default=default_results)
     a = p.parse_args(args)
     defaults = json.loads(Path(a.config).read_text())["defaults"]
     for key in ("batch", "input", "output", "group", "seed"):
@@ -176,12 +196,16 @@ def all_steps(args, sweep=False):
         shutil.copyfile(BUILD / "CMakeCache.txt", provenance / "CMakeCache.txt")
         if (BUILD / "compile_commands.json").exists():
             shutil.copyfile(BUILD / "compile_commands.json", provenance / "compile_commands.json")
+        bootstrap = Path(os.environ["NM_ENV_ROOT"]) / ".deps/bootstrap"
+        for filename in ("host-explicit-linux-64.txt", "host-spec.sha256", "python-freeze.txt", "micromamba.sha256"):
+            if (bootstrap / filename).is_file():
+                shutil.copyfile(bootstrap / filename, provenance / filename)
     print("\nCompleted VM workflow. Results: " + str(target))
 
 
 def container(command, args):
     if not shutil.which("docker"):
-        raise RuntimeError("Docker is not installed/on PATH. Reuse your existing ~/tools/torch-mlir natively, or install Docker on the VM first; see docs/UBUNTU_20_04.md")
+        raise RuntimeError("Docker is not installed/on PATH. Use native project-local just setup, or install Docker separately; see docs/UBUNTU_20_04.md")
     if command == "setup":
         run(["docker", "build", "--progress=plain", "-t", IMAGE, "."])
     else:
@@ -197,6 +221,9 @@ def main():
     use_container = "--container" in args
     args = [arg for arg in args if arg != "--container"]
     command = args.pop(0) if args else "help"
+    if command not in ("help", "--help", "-h", "doctor", "env", "metadata", "summarize", "collect"):
+        from jobs import guard
+        guard()
     if use_container:
         container(command, args)
         return
@@ -204,8 +231,9 @@ def main():
     if command in ("help", "--help", "-h"):
         print(__doc__ + "\n\n./nm doctor | setup | build | test | calibrate | demo | run | bench | summarize | all | sweep | collect\n"
               "Append --container to use the optional Ubuntu 24.04 compiler image on the Ubuntu 20.04 host.\n"
-              "Existing toolchain default: ~/tools/torch-mlir (same layout as mlir-quant-linear).\n"
-              "Examples: ./nm all; ./nm all --sampled; ./nm sweep; ./nm run --variant a8; ./nm build --scalar-only")
+              "Dependencies are local to this checkout: .venv and .deps.\n"
+              "Use just setup/run for tmux; just setup-bg/start to detach immediately; just attach/status/stop.\n"
+              "Foreground examples: just all; just all --sampled; just sweep; just projection --variant a8")
     elif command == "build":
         build(args)
     elif command == "setup":
@@ -225,7 +253,7 @@ def main():
         archive = ROOT / "results" / ("diagnostics-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S") + ".tar.gz")
         with tarfile.open(archive, "w:gz") as output:
             for file in target.rglob("*"):
-                if file.is_file() and file.suffix in (".json", ".csv", ".log", ".txt", ".md", ".nm", ".mlir", ".ll"):
+                if file.is_file() and file.suffix in (".json", ".csv", ".log", ".txt", ".md", ".nm", ".mlir", ".ll", ".sha256"):
                     output.add(file, arcname=str(file.relative_to(ROOT)))
         print(archive)
     else:

@@ -1,7 +1,9 @@
 # Supervisor demonstration
 
-Run all commands on the Ubuntu VM. Use the existing toolchain configuration
-from `mlir-quant-linear`; `./nm` activates the environment automatically.
+Run all commands on the Ubuntu VM. Run `just setup` first to build this
+checkout's isolated toolchain. `just run` manages the full experiment in tmux;
+Ctrl+B then D detaches, and `just attach` reconnects. The foreground commands
+below remain useful for a supervised walkthrough.
 
 ## Preparation and evidence
 

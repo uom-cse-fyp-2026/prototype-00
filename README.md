@@ -1,32 +1,133 @@
 # NeuroMinds Prototype 1
 
 A compiler-directed Inspector–Executor experiment for one CPU linear projection,
-`Y = X W^T`. Both executable paths share genuinely packed group-wise W4 weights:
+`Y = X W^T`. Both paths share real packed group-wise W4 weights:
 
-- **W4 + BF16:** actual 16-bit BF16 activation storage; FP32 arithmetic.
-- **W4 + A8:** signed INT8 activations; signed unpacked INT4 values; INT32
-  accumulation within each weight group, followed by FP32 scaling.
+- **W4 + BF16:** BF16 activation storage with FP32 arithmetic.
+- **W4 + A8:** INT8 activations, unpacked signed INT4 weights, INT32 per-group
+  accumulation, followed by FP32 scaling.
 
-The full build uses **PyTorch → torch-mlir FX → Linalg frontend artifacts**, a
-restricted packed-W4 MLIR emitter, a custom **`nm-prepare-executors` MLIR pass**,
-and **MLIR → LLVM IR → native object** lowering. The custom pass validates the
-executor ABI and generates the numerical-risk guard consumed at runtime.
+The full build uses a torch-mlir FX frontend, generated packed-W4 MLIR loops,
+a custom `nm-prepare-executors` MLIR pass that generates the runtime risk guard,
+and MLIR → LLVM IR → native object lowering. Activation inspection, typed plans,
+bounded caching and conservative fallback are implemented in C++.
 
-**Status:** source implementation authored on Windows. No project build, test,
-calibration, compiler pass execution, or benchmark was run on the authoring PC.
-The commands below perform that validation on your Ubuntu VM. There are no
-claimed passing results or performance numbers yet.
+**Status:** source authored on Windows; no builds or tests run on the authoring
+PC. The supplied VM doctor output shows the environment was not initialized
+(system Python had no torch and MLIR tools were absent). A successful prototype
+build, numerical validation and benchmark results are still pending VM execution.
 
-## Run using your existing toolchain
+## Project-local dependencies
 
-This repository reuses the environment layout from your `mlir-quant-linear`
-project: `~/tools/torch-mlir`, `mlir_venv`, and `build/bin`. Each `./nm` invocation
-loads `env.sh` automatically; you do not need to activate the venv manually.
+This checkout owns its environment. No other project's venv or
+`~/tools/torch-mlir` is automatically reused:
 
-Use the **`just` command runner** through the repository's `justfile`. Its
-recipes delegate to the environment-aware `nm` helper. Run `just` to list them.
-If `just` is not installed on Ubuntu 20.04, install the official prebuilt binary
-without changing system packages:
+```text
+.venv/                         prototype Python packages
+.deps/host/                    Python 3.11, GCC 13, CMake, Ninja and linker
+.deps/torch-mlir/               pinned torch-mlir source + matching LLVM submodule
+.deps/torch-mlir/build/         prototype LLVM/MLIR tools and Python bindings
+.deps/bootstrap/               local micromamba, exact package lists and hashes
+.deps/mamba-root/              local package cache
+```
+
+Ubuntu 20.04's stock GCC/Python remain installed. Setup obtains a newer
+user-space toolchain through project-local micromamba, creates `.venv`, installs
+the pinned upstream Python requirements there, then builds this project's own
+LLVM/MLIR/torch-mlir. It does not change shell startup files or system packages.
+Build parallelism defaults to four jobs with one linker job.
+
+## First setup on the VM
+
+After cloning this repository using your configured GitHub authentication:
+
+```bash
+cd ~/prototype-00
+git pull --ff-only
+sudo apt-get update
+sudo apt-get install -y git curl bzip2 ca-certificates tmux
+just setup
+```
+
+`just setup` opens the installation in a project-specific tmux session. Press
+**Ctrl+B, then D**, then close SSH if needed. For an immediate detached start,
+use `just setup-bg` instead.
+
+On reconnect:
+
+```bash
+cd ~/prototype-00
+just status
+just attach
+```
+
+Wait until setup reports **succeeded, exit status 0**. Detaching is not setup
+completion. The first LLVM source build can take substantial time and disk;
+later setup attempts reuse completed stages and the incremental build.
+
+## Run the experiment and disconnect safely
+
+After setup succeeds:
+
+```bash
+just run
+```
+
+This builds the prototype, runs tests, calibrates a frozen policy, demonstrates
+ordinary → outlier → ordinary inputs, benchmarks disjoint held-out inputs and
+summarizes measured results. It stops at a failed step. It runs in tmux, matching
+the workflow in the `quant-sensitivity` reference justfile.
+
+Use `just start` to launch the same workflow detached and return immediately.
+Use `just attach` to return, `just status` for the saved exit code and log tail,
+or `just logs` to follow output without attaching. Ctrl+C in `just logs` closes
+the viewer and leaves the job running. `just stop` stops this project's native
+job and its child process group, retaining logs.
+
+tmux protects against SSH disconnection, not VM shutdown/reboot or administrator
+process cleanup. The runner uses a dedicated socket per checkout and does not
+touch other projects' sessions. Only one managed job is allowed per checkout.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `just` | List commands |
+| `just doctor` | Inspect project dependency status, OS, CPU/ISA, RAM, tools and GPU visibility |
+| `just setup` / `just setup-bg` | Set up isolated dependencies, attached/detached |
+| `just run` / `just start` | Full experiment, attached/detached |
+| `just attach` / `just fg` | Reconnect to the latest job |
+| `just status` / `just logs` / `just jobs` | Inspect actual state, output and history |
+| `just stop` | Stop this project's job, retaining its logs |
+| `just pull` | Update source, refusing while a project job is active |
+| `just setup-fg` / `just all` | Foreground setup/full workflow with direct exit codes |
+| `just build` / `just test` | Foreground build and automated correctness tests |
+| `just calibrate` / `just demo` / `just bench` | Foreground individual experiment stages |
+| `just background build` | Run another supported task detached |
+| `just background sweep` | Independently calibrate/evaluate batches 1, 4, 8, 16 in the background |
+| `just projection --variant fp32` | Run one original FP32 reference projection |
+| `just projection --variant w4-reference` | Reference using actual W4 storage and FP32 activations |
+| `just projection --variant bf16` | Force BF16 with a calibrated policy |
+| `just projection --variant a8 --regime outliers` | Force A8; not evidence of adaptive selection |
+| `just projection --variant adaptive` | Run one guarded projection |
+| `just metadata` | Show compiled formats/configuration |
+| `just summarize results` | Summarize recorded measurements |
+| `just collect results/jobs/<job-id>` | Package logs, provenance and results for review |
+
+`just run` now means the full workflow. The previous single-projection command
+is `just projection`. The internal environment-aware CLI remains `./nm`.
+
+Arguments are preserved, including paths with spaces:
+
+```bash
+just start --batch 4 --input 512 --output 256 --group 32 --repeats 30
+```
+
+Full/sampled inspection, shape, backend and base seed must match calibration.
+Use a new job/policy when changing these. `just run --sampled` performs a separate
+sampled-inspection experiment. Foreground commands remain available for debugging.
+
+If `just` itself is missing on Ubuntu 20.04:
 
 ```bash
 mkdir -p "$HOME/.local/bin"
@@ -35,159 +136,49 @@ curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Keep that PATH entry in `~/.bashrc` for future sessions. This is the
-[official just installation method](https://just.systems/man/en/pre-built-binaries.html).
+Keep that PATH entry in `~/.bashrc` for future sessions. See the
+[official installer](https://just.systems/man/en/pre-built-binaries.html).
 
-```bash
-git clone https://github.com/uom-cse-fyp-2026/prototype-00.git
-cd prototype-00
-just doctor
-just all
-```
+## Results and compiler artifacts
 
-For an existing checkout:
+Default managed runs save their console log and actual exit code in
+`results/jobs/<job-id>/`. Full experiments put measurements in its `experiment/`
+subdirectory: raw calibration/benchmark CSVs, frozen policy, guard metrics,
+environment and compiler provenance, and `summary.md` / `summary.json`.
+Foreground `just all` uses a timestamped results directory. Results are ignored
+by Git; no fabricated measurements are committed.
 
-```bash
-git pull --ff-only
-just all
-```
+The full build retains `linear.torch.mlir`, `linear.linalg.mlir`, `frontend.json`,
+`nm_config.hpp`, `executors.mlir`, `executors.prepared.mlir`,
+`executors.llvm.mlir`, optimized LLVM IR and the native object under
+`build/generated/`. Exact resolved host packages and Python versions are
+retained and copied into successful experiment provenance.
 
-Override the old project's toolchain locations if necessary:
+The frontend recognizes only the specified bias-free projection. Quantized
+loops are emitted from a restricted template after that contract is checked.
+The real preparation pass validates the executor ABI and emits the risk guard;
+it does not transform arbitrary Torch/Linalg graphs or generate descriptor
+reductions. This is ahead-of-time preparation, not adaptive JIT compilation.
 
-```bash
-export TORCH_MLIR_SRC="$HOME/tools/torch-mlir"
-export TORCH_MLIR_BUILD="$TORCH_MLIR_SRC/build"
-just doctor
-just all
-```
+## Research interpretation
 
-`all` builds a Release executable and the MLIR pass, runs CTest, fits and freezes
-a calibration policy, demonstrates ordinary → outlier → ordinary inputs, runs
-held-out benchmarks, and summarizes the actual measurements. It stops on the
-first failure. A failed build/test must be fixed before claiming results.
+The guard estimates activation quantization risk from calibration-only data.
+It never reads the current reference-output error. A8 must also have a measured
+total-cost advantage, including inspection/decision overhead, before selection.
+The adaptive policy may legitimately retain BF16 for every input. Both kernels
+are demonstrated separately in forced mode.
 
-## Short commands
+Compare numerical error against both actual W4 storage (activation error) and
+original FP32 weights (combined error). BF16 fallback retains W4 weight error.
+Cheap statistics do not certify per-input quality, and sampling can miss rare
+outliers. Report false-safe and false-fallback rates on held-out inputs.
 
-| Command | Purpose |
-|---|---|
-| `just doctor` | Record VM OS, CPU/ISA, RAM, compilers, tools, upstream revisions, optional NVIDIA visibility |
-| `just build` | Build the full torch-mlir / MLIR / LLVM implementation |
-| `just test` | Execute automated numerical, runtime, frontend and compiler tests |
-| `just metadata` | Show compiled formats, configuration version and fallback |
-| `just calibrate` | Fit scales, guard and measured costs; save `results/policy.nm` |
-| `just demo` | Show adaptive decisions and separate forced-kernel executions |
-| `just run --variant fp32` | Run the FP32 reference |
-| `just run --variant w4-reference` | Isolate the actual W4 representation with FP32 activations |
-| `just run --variant bf16` | Force BF16 (requires calibration policy) |
-| `just run --variant a8 --regime outliers` | Force A8 on an outlier input; evaluation only |
-| `just run --variant adaptive` | Execute the guarded runtime |
-| `just bench` | Compare five modes on disjoint held-out inputs |
-| `just summarize results` | Recompute summaries from recorded CSVs |
-| `just all --sampled` | Separate experiment with sampled features and a separately calibrated policy |
-| `just sweep` | Independently calibrate/evaluate batches 1, 4, 8, 16 |
-| `just collect results/<run-directory>` | Package logs, provenance and measurements for review |
+There is no promised speedup, full LLM inference, KV-cache adaptation, global
+MDE controller, runtime JIT or model-quality claim. The NVIDIA GPU is detected
+for provenance but is not required by this CPU prototype.
 
-Example with different dimensions and more measurement repetitions:
-
-```bash
-just all --batch 4 --input 512 --output 256 --group 32 --repeats 30
-```
-
-Direct executable options include `--samples`, `--warmup`, `--repeats`,
-`--seed`, `--policy`, `--results`, `--sampled`, and `--backend mlir|scalar`.
-Calibration and evaluation must agree on shape, group size, base seed,
-inspection mode, backend, code/compiler identity and generated configuration.
-Changing them requires a new policy. Use `just all` to manage these together.
-
-## Ubuntu 20.04 and fresh setup
-
-Reuse the already working compiler environment first. Ubuntu 20.04's stock
-Python/CMake/compiler may be too old to build a fresh recent torch-mlir tree.
-`setup` preserves existing toolchains and does not install system packages.
-
-If Docker is already available on the VM, an optional isolated compiler
-environment avoids changing the host distribution:
-
-```bash
-just setup --container
-just all --container
-```
-
-This builds a CPU toolchain from the torch-mlir revision in `toolchain.lock.json`
-and its exact LLVM submodule. It is a substantial source build, not a model
-download. Keep ample disk space and limit parallelism to fit VM RAM. See
-[Ubuntu 20.04 setup](docs/UBUNTU_20_04.md) for native prerequisites, environment
-overrides, container limitations and failure diagnostics.
-
-## Compiler artifacts
-
-The full build retains these files under `build/generated/`:
-
-```text
-linear.torch.mlir          torch-mlir import of the restricted PyTorch projection
-linear.linalg.mlir         torch-mlir lowering of that operator
-frontend.json              checked graph contract and IR hash
-nm_config.hpp              validated C++ metadata, defaults and configuration hash
-executors.mlir             packed-W4 BF16 / A8 numerical loops
-executors.prepared.mlir    custom-pass approvals and generated nm_risk_guard
-executors.llvm.mlir        lowered LLVM dialect
-executors.ll               LLVM IR
-executors.o                native object linked into neurominds_demo
-build_manifest.json        configuration + frontend provenance
-compiler_manifest.json     actual tool versions, lowering time and object size
-```
-
-The frontend deliberately recognizes only the specified bias-free projection.
-The quantized loops are emitted from a restricted operator template after that
-contract is checked. This is not a general transformation of arbitrary Linalg
-graphs. The custom pass generates the guard and validates the executor family;
-the activation descriptor reductions remain C++.
-
-## Interpreting the experiment
-
-Input values primarily affect quantization error. A conventional dense kernel
-does not become faster just because its inputs contain fewer outliers. The
-runtime selects a different implemented numerical path only if both its
-calibrated risk predicate and measured total-cost test accept it.
-
-The measured cost comparison includes activation preparation, inspection,
-decision/cache costs and dispatch. It requires a configured margin and a p95
-cost check. If A8 has no credible advantage, adaptive execution stays on BF16.
-The demo still runs both kernels in clearly marked forced mode.
-
-A cheap guard is an empirical predictor, not an accuracy certificate. Sampled
-features can miss rare outliers. BF16 fallback still contains W4 weight error.
-Held-out false-safe and false-fallback rates must be inspected before extending
-the design. A speedup is not required for this milestone.
-
-No CUDA dependency, downloaded LLM, adaptive JIT compilation, KV-cache
-adaptation, full MDE hardware controller, or model-quality claim is included.
-The NVIDIA GPU can be considered as a separate backend later.
-
-## Project map
-
-```text
-compiler/                 custom MLIR driver and preparation/guard-generation pass
-configs/                  approved family, quality budget, shape/memory limits
-include/neurominds/       typed kernel, descriptor, plan, policy and runtime interfaces
-src/quantization/         W4 packing, scales, BF16 and A8 conversion
-src/kernels/              independent references and scalar/MLIR dispatch bridge
-src/inspector/            full/sampled descriptors and risk/cost predicates
-src/executor/             plan validation and guarded execution
-src/runtime/              bounded cache, policy persistence and provenance
-src/benchmark/            calibration, demonstrations and held-out experiments
-tests/                    C++ numerical/runtime and Python compiler/frontend tests
-tools/                    frontend, metadata/IR emitter, lowering, CLI and summary tools
-scripts/                  toolchain setup and complete validation entry point
-docs/                     architecture, numerical contract and research mapping
-results/                  VM-produced measurements (ignored except README)
-```
-
-Read [architecture](docs/ARCHITECTURE.md), [numerical semantics](docs/NUMERICS.md),
+Details: [Ubuntu setup and disconnect/reconnect](docs/UBUNTU_20_04.md),
+[architecture](docs/ARCHITECTURE.md), [numerical semantics](docs/NUMERICS.md),
 [methodology mapping](docs/METHODOLOGY_MAPPING.md),
-[results status](docs/PROTOTYPE_RESULTS.md) and
+[results status](docs/PROTOTYPE_RESULTS.md), and
 [supervisor demonstration](docs/SUPERVISOR_DEMO.md).
-
-Upstream integration follows the [torch-mlir development guide](https://github.com/llvm/torch-mlir/blob/main/docs/development.md),
-the [MLIR getting-started guide](https://mlir.llvm.org/getting_started/), and the
-working environment/lowering conventions in your earlier `mlir-quant-linear` repository.
