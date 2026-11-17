@@ -51,6 +51,12 @@ not delete the build directory or overwrite a checkout with tracked changes.
 downloading the compiler stack. These check duplicate-job guards, argument
 handling and PID-reuse safety; reconnect behavior still requires a real tmux run.
 
+If an older setup stopped after a successful package transaction with
+`The following argument was not expected: --explicit`, update the repository
+and restart `just setup-bg`. The corrected exporter uses
+`micromamba env export --explicit`, preserves the installed host environment,
+and replaces the package lockfile only after a successful, nonempty export.
+
 ## Dependency locations
 
 ```text

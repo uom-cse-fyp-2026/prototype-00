@@ -50,9 +50,22 @@ if [[ ! -f "$NM_HOST_PREFIX/conda-meta/history" || ! -x "$NM_HOST_PREFIX/bin/pyt
   "$NM_MICROMAMBA" --no-rc "$NM_MAMBA_ACTION" --yes --prefix "$NM_HOST_PREFIX" \
     --override-channels --channel conda-forge --strict-channel-priority \
     --file "$NM_HOST_SPEC"
-  "$NM_MICROMAMBA" --no-rc list --prefix "$NM_HOST_PREFIX" --explicit > "$NM_BOOTSTRAP/host-explicit-linux-64.txt"
-  printf '%s\n' "$NM_HOST_SPEC_HASH" > "$NM_BOOTSTRAP/host-spec.sha256"
+  # Package installation succeeded even if a later provenance export fails.
+  printf '%s\n' "$NM_HOST_SPEC_HASH" > "$NM_BOOTSTRAP/host-spec.sha256.tmp"
+  mv "$NM_BOOTSTRAP/host-spec.sha256.tmp" "$NM_BOOTSTRAP/host-spec.sha256"
 fi
+# Micromamba's explicit format belongs to `env export`, not `list`.
+# Export on retries too, and never truncate a previous usable lockfile on failure.
+"$NM_MICROMAMBA" --no-rc env export --prefix "$NM_HOST_PREFIX" --explicit > "$NM_BOOTSTRAP/host-explicit-linux-64.txt.tmp"
+/usr/bin/python3 - "$NM_BOOTSTRAP/host-explicit-linux-64.txt.tmp" <<'PY'
+from pathlib import Path
+import sys
+lines = [line.strip() for line in Path(sys.argv[1]).read_text().splitlines()
+         if line.strip() and not line.lstrip().startswith('#')]
+if len(lines) < 2 or lines[0] != '@EXPLICIT':
+    raise SystemExit('Micromamba did not export a nonempty explicit package list; existing lockfile preserved.')
+PY
+mv "$NM_BOOTSTRAP/host-explicit-linux-64.txt.tmp" "$NM_BOOTSTRAP/host-explicit-linux-64.txt"
 source "$NM_SETUP_ROOT/env.sh"
 
 if [[ ! -d "$NM_SOURCE" ]]; then
