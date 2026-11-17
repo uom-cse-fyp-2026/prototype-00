@@ -1,0 +1,241 @@
+
++ cmake -S /home/deepthi/prototype-00 -B /home/deepthi/prototype-00/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=/home/deepthi/prototype-00/.venv/bin/python -DNM_CONFIG=/home/deepthi/prototype-00/configs/prototype.json -DNM_ENABLE_MLIR=ON -DNM_SANITIZERS=OFF -DCMAKE_C_COMPILER=/home/deepthi/prototype-00/.deps/host/bin/x86_64-conda-linux-gnu-cc -DCMAKE_CXX_COMPILER=/home/deepthi/prototype-00/.deps/host/bin/x86_64-conda-linux-gnu-c++ -DNM_LLVM_BIN=/home/deepthi/prototype-00/.deps/torch-mlir/build/bin -DMLIR_DIR=/home/deepthi/prototype-00/.deps/torch-mlir/build/lib/cmake/mlir -DLLVM_DIR=/home/deepthi/prototype-00/.deps/torch-mlir/build/lib/cmake/llvm -DNM_MLIR_OPT=/home/deepthi/prototype-00/.deps/torch-mlir/build/bin/mlir-opt -DNM_MLIR_TRANSLATE=/home/deepthi/prototype-00/.deps/torch-mlir/build/bin/mlir-translate -DNM_LLC=/home/deepthi/prototype-00/.deps/torch-mlir/build/bin/llc -DNM_LLVM_OPT=/home/deepthi/prototype-00/.deps/torch-mlir/build/bin/opt
+-- The C compiler identification is GNU 13.4.0
+-- The CXX compiler identification is GNU 13.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /home/deepthi/prototype-00/.deps/host/bin/x86_64-conda-linux-gnu-cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /home/deepthi/prototype-00/.deps/host/bin/x86_64-conda-linux-gnu-c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found Python3: /home/deepthi/prototype-00/.venv/bin/python (found suitable version "3.11.18", minimum required is "3.8") found components: Interpreter
+-- Looking for histedit.h
+-- Looking for histedit.h - found
+-- Found LibEdit: /home/deepthi/prototype-00/.deps/host/include (found version "2.11")
+-- Found ZLIB: /home/deepthi/prototype-00/.deps/host/lib/libz.so (found version "1.3.2")
+-- Found zstd: /home/deepthi/prototype-00/.deps/host/lib/libzstd.so
+-- Looking for lzma_auto_decoder in /home/deepthi/prototype-00/.deps/host/lib/liblzma.so
+-- Looking for lzma_auto_decoder in /home/deepthi/prototype-00/.deps/host/lib/liblzma.so - found
+-- Looking for lzma_easy_encoder in /home/deepthi/prototype-00/.deps/host/lib/liblzma.so
+-- Looking for lzma_easy_encoder in /home/deepthi/prototype-00/.deps/host/lib/liblzma.so - found
+-- Looking for lzma_lzma_preset in /home/deepthi/prototype-00/.deps/host/lib/liblzma.so
+-- Looking for lzma_lzma_preset in /home/deepthi/prototype-00/.deps/host/lib/liblzma.so - found
+-- Found LibLZMA: /home/deepthi/prototype-00/.deps/host/lib/liblzma.so (found version "5.8.3")
+-- Linker detection: GNU ld
+-- Performing Test SUPPORTS_LIBCXX_HARDENING_MODE
+-- Performing Test SUPPORTS_LIBCXX_HARDENING_MODE - Success
+-- Performing Test LLVM_USES_LIBSTDCXX
+-- Performing Test LLVM_USES_LIBSTDCXX - Success
+-- Performing Test LLVM_DEFAULT_TO_GLIBCXX_USE_CXX11_ABI
+-- Performing Test LLVM_DEFAULT_TO_GLIBCXX_USE_CXX11_ABI - Success
+-- Performing Test C_SUPPORTS_FPIC
+-- Performing Test C_SUPPORTS_FPIC - Success
+-- Performing Test CXX_SUPPORTS_FPIC
+-- Performing Test CXX_SUPPORTS_FPIC - Success
+-- Building with -fPIC
+-- Performing Test C_SUPPORTS_FNO_SEMANTIC_INTERPOSITION
+-- Performing Test C_SUPPORTS_FNO_SEMANTIC_INTERPOSITION - Success
+-- Performing Test CXX_SUPPORTS_FNO_SEMANTIC_INTERPOSITION
+-- Performing Test CXX_SUPPORTS_FNO_SEMANTIC_INTERPOSITION - Success
+-- Performing Test SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG
+-- Performing Test SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG - Success
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG - Success
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL - Success
+CMake Warning (policy) at .deps/torch-mlir/build/lib/cmake/llvm/HandleLLVMOptions.cmake:960 (CHECK_C_SOURCE_COMPILES):
+  Policy CMP0219 is not set: Macro invocations preserve backslashes in
+  arguments.  Run "cmake --help-policy CMP0219" for policy details.  Use the
+  cmake_policy command to set the policy and suppress this warning.
+
+  Command "CHECK_C_SOURCE_COMPILES" called with arguments containing
+  backslashes.
+
+  Since the policy is not set, backslashes in the arguments:
+
+   "// \\\n//\nint main(void) {return 0;}"
+
+  will be interpreted as escape sequences for compatibility.
+
+  Set the policy to NEW to instead pass
+
+   "// \\\\\\n//\\nint main(void) {return 0;}"
+
+  so that argument parsing will preserve the original values.
+Call Stack (most recent call first):
+  compiler/CMakeLists.txt:6 (include)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP - Failed
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG - Failed
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG - Success
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS - Failed
+Precompiled headers are disabled by default with GCC. Pass -DCMAKE_DISABLE_PRECOMPILE_HEADERS=OFF to override.
+-- Precompiled headers disabled.
+-- Looking for os_signpost_interval_begin
+-- Looking for os_signpost_interval_begin - not found
+-- Looking for flock
+-- Looking for flock - found
+-- Performing Test LLVM_LINKER_SUPPORTS_B_SYMBOLIC_FUNCTIONS
+-- Performing Test LLVM_LINKER_SUPPORTS_B_SYMBOLIC_FUNCTIONS - Success
+-- Configuring done (67.0s)
+-- Generating done (0.3s)
+-- Build files have been written to: /home/deepthi/prototype-00/build
+
++ cmake --build /home/deepthi/prototype-00/build --parallel 2
+[0/2] Re-checking globbed directories...
+[1/20] Generating generated/frontend.json, generated/linear.torch.mlir, generated/linear.linalg.mlir
+[2/20] Generating generated/nm_config.hpp, generated/executors.mlir, generated/build_manifest.json
+[3/20] Building CXX object compiler/CMakeFiles/nm-opt.dir/nm-opt.cpp.o
+[4/20] Building CXX object compiler/CMakeFiles/nm-opt.dir/PrepareExecutors.cpp.o
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp: In member function 'virtual void {anonymous}::PrepareExecutors::runOnOperation()':
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:57:40: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::func::FuncOp; Args = {const char (&)[14], mlir::FunctionType&}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   57 |     auto guard = b.create<func::FuncOp>(location, "nm_risk_guard", type);
+      |                  ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/PatternMatch.h:12,
+                 from /home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/Interfaces/ControlFlowInterfaces.h:19,
+                 from /home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/Dialect/Arith/IR/Arith.h:16,
+                 from /home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:1:
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:62:42: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::CmpFOp; Args = {mlir::arith::CmpFPredicate, mlir::BlockArgument, mlir::BlockArgument}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   62 |     Value maxOk = b.create<arith::CmpFOp>(location, arith::CmpFPredicate::OLE, entry->getArgument(0), entry->getArgument(2));
+      |                   ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:63:47: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::CmpFOp; Args = {mlir::arith::CmpFPredicate, mlir::BlockArgument, mlir::BlockArgument}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   63 |     Value clippingOk = b.create<arith::CmpFOp>(location, arith::CmpFPredicate::OLE, entry->getArgument(1), entry->getArgument(3));
+      |                        ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:64:48: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::ConstantIntOp; Args = {int, int}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   64 |     Value zero = b.create<arith::ConstantIntOp>(location, 0, 32);
+      |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:65:44: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::CmpIOp; Args = {mlir::arith::CmpIPredicate, mlir::BlockArgument, mlir::Value&}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   65 |     Value enabled = b.create<arith::CmpIOp>(location, arith::CmpIPredicate::ne, entry->getArgument(4), zero);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:66:45: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::AndIOp; Args = {mlir::Value&, mlir::Value&}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   66 |     Value accepted = b.create<arith::AndIOp>(location, maxOk, clippingOk);
+      |                      ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:67:39: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::AndIOp; Args = {mlir::Value&, mlir::Value&}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   67 |     accepted = b.create<arith::AndIOp>(location, accepted, enabled);
+      |                ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:68:44: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::arith::ExtUIOp; Args = {mlir::IntegerType, mlir::Value&}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   68 |     Value result = b.create<arith::ExtUIOp>(location, b.getI32Type(), accepted);
+      |                    ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+/home/deepthi/prototype-00/compiler/PrepareExecutors.cpp:69:29: warning: 'OpTy mlir::OpBuilder::create(mlir::Location, Args&& ...) [with OpTy = mlir::func::ReturnOp; Args = {mlir::Value&}]' is deprecated: Use OpTy::create instead [-Wdeprecated-declarations]
+   69 |     b.create<func::ReturnOp>(location, result);
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~
+/home/deepthi/prototype-00/.deps/torch-mlir/externals/llvm-project/mlir/include/mlir/IR/Builders.h:509:8: note: declared here
+  509 |   OpTy create(Location location, Args &&...args) {
+      |        ^~~~~~
+[5/20] Linking CXX executable compiler/bin/nm-opt
+[6/20] Generating generated/executors.o, generated/executors.llvm.mlir, generated/executors.ll
++ /home/deepthi/prototype-00/build/compiler/bin/nm-opt /home/deepthi/prototype-00/build/generated/executors.mlir --nm-prepare-executors -o /home/deepthi/prototype-00/build/generated/executors.prepared.mlir
++ /home/deepthi/prototype-00/.deps/torch-mlir/build/bin/mlir-opt /home/deepthi/prototype-00/build/generated/executors.prepared.mlir --canonicalize --cse --convert-scf-to-cf --expand-strided-metadata --finalize-memref-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --convert-func-to-llvm --convert-cf-to-llvm --reconcile-unrealized-casts -o /home/deepthi/prototype-00/build/generated/executors.llvm.mlir
++ /home/deepthi/prototype-00/.deps/torch-mlir/build/bin/mlir-translate --mlir-to-llvmir /home/deepthi/prototype-00/build/generated/executors.llvm.mlir -o /home/deepthi/prototype-00/build/generated/executors.unoptimized.ll
++ /home/deepthi/prototype-00/.deps/torch-mlir/build/bin/opt -passes=default<O3> -S /home/deepthi/prototype-00/build/generated/executors.unoptimized.ll -o /home/deepthi/prototype-00/build/generated/executors.ll
++ /home/deepthi/prototype-00/.deps/torch-mlir/build/bin/llc -O=3 -filetype=obj -relocation-model=pic /home/deepthi/prototype-00/build/generated/executors.ll -o /home/deepthi/prototype-00/build/generated/executors.o
+[7/20] Building CXX object CMakeFiles/neurominds.dir/src/quantization/quantization.cpp.o
+[8/20] Building CXX object CMakeFiles/neurominds.dir/src/kernels/kernels.cpp.o
+[9/20] Building CXX object CMakeFiles/neurominds.dir/src/inspector/inspector.cpp.o
+[10/20] Building CXX object CMakeFiles/neurominds.dir/src/runtime/cache.cpp.o
+[11/20] Building CXX object CMakeFiles/neurominds.dir/src/runtime/policy.cpp.o
+[12/20] Building CXX object CMakeFiles/neurominds.dir/src/executor/executor.cpp.o
+[13/20] Building CXX object CMakeFiles/neurominds.dir/src/runtime/io.cpp.o
+[14/20] Building CXX object CMakeFiles/neurominds_demo.dir/src/main.cpp.o
+[15/20] Building CXX object CMakeFiles/neurominds.dir/src/benchmark/experiments.cpp.o
+[16/20] Linking CXX static library libneurominds.a
+[17/20] Linking CXX executable neurominds_demo
+[18/20] Building CXX object CMakeFiles/neurominds_tests.dir/tests/test_core.cpp.o
+[19/20] Linking CXX executable neurominds_tests
+
++ ctest --test-dir /home/deepthi/prototype-00/build --output-on-failure
+Test project /home/deepthi/prototype-00/build
+    Start 1: numerical_and_runtime
+1/6 Test #1: numerical_and_runtime ............   Passed    0.32 sec
+    Start 2: generator_validation
+2/6 Test #2: generator_validation .............   Passed    0.24 sec
+    Start 3: vm_job_control
+3/6 Test #3: vm_job_control ...................   Passed    0.26 sec
+    Start 4: cli_rejects_invalid_shape
+4/6 Test #4: cli_rejects_invalid_shape ........   Passed    0.01 sec
+    Start 5: torch_mlir_frontend
+5/6 Test #5: torch_mlir_frontend ..............   Passed    8.04 sec
+    Start 6: compiler_contract
+6/6 Test #6: compiler_contract ................   Passed    1.17 sec
+
+100% tests passed out of 6
+
+Total Test time (real) =  10.04 sec
+
++ /home/deepthi/prototype-00/build/neurominds_demo calibrate --batch 1 --input 512 --output 256 --group 32 --seed 4533 --backend mlir --results /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment --policy /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment/policy.nm --warmup 3 --repeats 15 --samples 64
+Calibrated input 16/64
+Calibrated input 32/64
+Calibrated input 48/64
+Calibrated input 64/64
+Calibration only: 64 inputs; clip=3.26695 scale=0.025724 guard_enabled=1 accepts=16 unsafe_accepted=0
+Measured static BF16=2281.96 us A8=461.924 us; inspector=14.6491 us; decision/cache=0.216375 us
+Saved /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment/policy.nm
+
++ /home/deepthi/prototype-00/build/neurominds_demo demo --batch 1 --input 512 --output 256 --group 32 --seed 4533 --backend mlir --results /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment --policy /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment/policy.nm --warmup 3 --repeats 15
+Adaptive sequence (references are evaluation-only; they never enter the inspector):
+regime=normal max=3.089 mean=0.794 p99=2.558 clipping=0.000 outliers=0.012 inspected=512(full) cache=miss selected=w4_a8 fallback=0 error_w4=0.006968 total_us=674.69 kernel_us=624.54 inspector_us=21.16 reason="risk guard accepted; measured A8 total-cost advantage"
+regime=normal max=3.089 mean=0.794 p99=2.558 clipping=0.000 outliers=0.012 inspected=512(full) cache=hit selected=w4_a8 fallback=0 error_w4=0.006968 total_us=674.65 kernel_us=632.82 inspector_us=15.46 reason="risk guard accepted; measured A8 total-cost advantage"
+regime=outliers max=40.000 mean=0.867 p99=2.639 clipping=0.004 outliers=0.014 inspected=512(full) cache=miss selected=w4_bf16 fallback=1 error_w4=0.000766 total_us=3807.90 kernel_us=3767.41 inspector_us=22.23 reason="calibrated risk guard rejected A8"
+regime=normal max=3.089 mean=0.794 p99=2.558 clipping=0.000 outliers=0.012 inspected=512(full) cache=hit selected=w4_a8 fallback=0 error_w4=0.006968 total_us=668.29 kernel_us=627.00 inspector_us=15.88 reason="risk guard accepted; measured A8 total-cost advantage"
+regime=normal max=3.089 mean=0.794 p99=2.558 clipping=0.000 outliers=0.012 inspected=512(full) cache=hit selected=w4_a8 fallback=0 error_w4=0.006968 total_us=665.29 kernel_us=627.20 inspector_us=13.28 reason="risk guard accepted; measured A8 total-cost advantage"
+Forced implementations (separate from adaptive decisions):
+regime=normal/forced max=3.089 mean=0.794 p99=2.558 clipping=0.000 outliers=0.012 inspected=512(full) cache=n/a selected=w4_bf16 fallback=0 error_w4=0.001862 total_us=3285.75 kernel_us=3272.19 inspector_us=0.00 reason="forced variant (not an adaptive selection)"
+regime=normal/forced max=3.089 mean=0.794 p99=2.558 clipping=0.000 outliers=0.012 inspected=512(full) cache=n/a selected=w4_a8 fallback=0 error_w4=0.006968 total_us=651.01 kernel_us=627.44 inspector_us=0.00 reason="forced variant (not an adaptive selection)"
+cache_hits=3 misses=2 invalidations=0 fallbacks=1
+
++ /home/deepthi/prototype-00/build/neurominds_demo bench --batch 1 --input 512 --output 256 --group 32 --seed 4533 --backend mlir --results /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment --policy /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment/policy.nm --warmup 3 --repeats 15 --samples 16
+Evaluated held-out input 4/16
+Evaluated held-out input 8/16
+Evaluated held-out input 12/16
+Evaluated held-out input 16/16
+Held-out operator benchmark, mlir_llvm; microseconds (preliminary VM performance):
+fp32: mean=475.519 median=538.229 p95=580.968
+static_bf16: mean=2853.68 median=3281.11 p95=3414.1
+static_a8: mean=566.5 median=647.13 p95=664.912
+adaptive: mean=2240.31 median=2086.12 p95=3337.38
+guard_disabled: mean=569.534 median=659.526 p95=684.149
+False-safe=0/12 unsafe; false-fallback=0/4 safe; packed+scales=81920 bytes; checksum=1517.6
+Saved /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment/benchmark.csv
+
++ /home/deepthi/prototype-00/.venv/bin/python /home/deepthi/prototype-00/tools/summarize.py /home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/experiment
+Traceback (most recent call last):
+  File "/home/deepthi/prototype-00/tools/summarize.py", line 120, in <module>
+    summarize(path)
+  File "/home/deepthi/prototype-00/tools/summarize.py", line 101, in summarize
+    lines += ["Paired bootstrap 95% interval for static-BF16/adaptive latency ratio: **%.3f to %.3f**. Values below 1 favor static BF16." % tuple(interval), ""]
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+TypeError: not enough arguments for format string

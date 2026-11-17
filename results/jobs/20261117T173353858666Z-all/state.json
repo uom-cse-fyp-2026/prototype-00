@@ -1,0 +1,19 @@
+{
+  "id": "20261117T173353858666Z-all",
+  "task": "all",
+  "arguments": [],
+  "status": "failed",
+  "created_at_utc": "2026-11-17T17:33:53.858902+00:00",
+  "session": "nm-20261117T173353858666Z-all",
+  "socket": "neurominds-580109420e62",
+  "root": "/home/deepthi/prototype-00",
+  "log": "/home/deepthi/prototype-00/results/jobs/20261117T173353858666Z-all/console.log",
+  "exit_code": 1,
+  "build_environment": {},
+  "started_at_utc": "2026-11-17T17:33:53.994252+00:00",
+  "worker_pid": 550050,
+  "worker_start_ticks": "47176263",
+  "child_pid": 550059,
+  "child_start_ticks": "47176274",
+  "ended_at_utc": "2026-11-17T17:37:14.879175+00:00"
+}
