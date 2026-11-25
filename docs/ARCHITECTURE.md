@@ -1,36 +1,11 @@
 # Architecture
 
 The unit of adaptation is one contiguous, bias-free CPU projection
-`X[M,K] * W[N,K]^T -> Y[M,N]`. Weights stay W4 throughout an experiment.
+`X[M,K] * W[N,K]^T -> Y[M,N]`. Both executors read the same packed W4 weights.
 
-Toolchain and Python dependencies are owned by this checkout under `.deps`
-and `.venv`. The VM job runner uses a dedicated tmux socket and records
-console logs and exit status; SSH disconnect/reconnect does not change the
-numerical runtime architecture. Background orchestration is outside timed
-operator invocations.
+## Compiler preparation and calibration
 
-```mermaid
-flowchart TD
-  T[PyTorch linear operator] --> TM[torch-mlir FX import and Linalg artifact]
-  TM --> C[Validated restricted operator contract]
-  J[Approved JSON configuration] --> G[Python metadata and MLIR emitter]
-  C --> G
-  G --> P[Custom nm-prepare-executors MLIR pass]
-  P --> L[MLIR lowering and LLVM native objects]
-  L --> E[Guarded C++ Executor]
-  S[Synthetic calibration inputs] --> O[Offline errors and measured costs]
-  O --> F[Frozen versioned policy]
-  X[Current activation tensor] --> I[Full or sampled C++ Inspector]
-  F --> I
-  I --> R[Compiler-generated risk guard plus measured cost decision]
-  R --> K[Bounded plan cache and current validity checks]
-  K --> E
-  E --> B[W4 with BF16 activation storage and FP32 arithmetic]
-  E --> A[W4 with INT8 activations and INT32 group dots]
-  E --> Q[Conservative BF16 fallback]
-```
-
-## Offline and build boundaries
+![Build and calibration stages from PyTorch import through native kernels and a frozen policy.](figures/compiler-and-calibration.svg)
 
 `export_linear.py` exports an example `torch.mm(x, w.t())` via `torch.export`
 and torch-mlir FX. The pre-lowering graph must contain exactly the transpose
@@ -49,11 +24,15 @@ limits and a policy-enabled flag. MLIR lowers that predicate and the kernels
 to LLVM IR; `llc` emits the object linked into the runtime. No unimplemented
 variant is represented by a function pointer.
 
-The preparation pass is an actual MLIR pass in source. It is not an arbitrary
-Torch/Linalg quantization rewrite, does not generate descriptor reductions, and
-must be compiled and exercised on the VM before reporting it as working.
+Calibration runs the compiled variants on synthetic inputs. It fits the A8
+activation scale and guard thresholds against the W4 reference and records the
+measured execution costs. The runtime loads this frozen policy for the matching
+shape, backend, and environment. The [archived VM log][vm-log] records the
+compiler steps and tests.
 
-## Runtime boundary
+## Runtime dispatch
+
+![Runtime inspection, plan lookup, and validation select either the A8 or BF16 executor.](figures/runtime-dispatch.svg)
 
 Each `Executor::adaptive` invocation performs these operations:
 
@@ -122,3 +101,5 @@ retaining the native ABI. An ORC JIT could later supply compatible executors.
 A global MDE controller could supply versioned shared hardware-state buckets.
 Those mechanisms are separate future work; the current runtime never compiles
 new kernels or reads hardware sensors inside an operator.
+
+[vm-log]: ../results/jobs/20261117T173353858666Z-all/experiment/run.log

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 360" width="1040" height="360" role="img" aria-labelledby="title desc">
+  <title id="title">Compiler preparation and calibration</title>
+  <desc id="desc">A checked PyTorch linear projection and project configuration feed restricted MLIR templates. A custom pass prepares two kernels and a risk predicate, which LLVM compiles to native code. Offline calibration times the variants and fits a policy. The runtime uses both the native code and the frozen policy.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect x="1" y="1" width="1038" height="358" rx="22" fill="#f4f7fa" stroke="#d8e1ea" stroke-width="2"/>
+  <g font-family="system-ui, Segoe UI, sans-serif" fill="#14283d">
+    <text x="28" y="45" font-size="27" font-weight="700">Compiler preparation and calibration</text>
+    <g fill="#fff" stroke="#d6e0e9" stroke-width="1.5">
+      <rect x="28" y="70" width="300" height="180" rx="14"/>
+      <rect x="370" y="70" width="300" height="180" rx="14"/>
+      <rect x="712" y="70" width="300" height="180" rx="14"/>
+    </g>
+    <g fill="#dcefeb">
+      <rect x="47" y="87" width="34" height="28" rx="7"/>
+      <rect x="389" y="87" width="34" height="28" rx="7"/>
+      <rect x="731" y="87" width="34" height="28" rx="7"/>
+    </g>
+    <g font-size="15" font-weight="700" fill="#16594e">
+      <text x="55" y="107">01</text>
+      <text x="397" y="107">02</text>
+      <text x="739" y="107">03</text>
+    </g>
+    <g font-size="20" font-weight="700">
+      <text x="92" y="108">Import</text>
+      <text x="434" y="108">Compile</text>
+      <text x="776" y="108">Calibrate</text>
+    </g>
+    <g font-size="17" fill="#334b61">
+      <text x="47" y="145">PyTorch linear projection</text>
+      <text x="47" y="172">torch-mlir FX to Torch/Linalg IR</text>
+      <text x="389" y="145">Emit MLIR from templates</text>
+      <text x="389" y="172">Custom pass → LLVM lowering</text>
+      <text x="731" y="145">Timed kernels + reference errors</text>
+      <text x="731" y="172">Fit activation scale and risk limits</text>
+    </g>
+    <path d="M47 192H309M389 192H651M731 192H993" stroke="#d6e0e9"/>
+    <g font-size="17" font-weight="600" fill="#16594e">
+      <text x="47" y="224">Checked operator contract</text>
+      <text x="389" y="224">Native kernels + risk predicate</text>
+      <text x="731" y="224">Frozen policy</text>
+    </g>
+    <g stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)">
+      <path d="M331 158H364"/>
+      <path d="M673 158H706"/>
+      <path d="M520 252V278"/>
+      <path d="M862 252V278"/>
+    </g>
+    <rect x="370" y="281" width="642" height="51" rx="12" fill="#18334c"/>
+    <text x="691" y="314" font-size="19" font-weight="650" text-anchor="middle" fill="#fff">Runtime loads the policy and calls the compiled code</text>
+  </g>
+</svg>
