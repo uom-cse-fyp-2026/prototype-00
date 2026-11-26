@@ -17,6 +17,18 @@ sudo apt-get install -y git curl bzip2 ca-certificates tmux
 These host utilities are separate from the ML/Python/compiler dependencies.
 The setup script does not execute sudo or alter system Python/GCC.
 
+Install `just` if it is missing. This installs a prebuilt binary in your
+user directory on Ubuntu 20.04.
+
+```bash
+mkdir -p "$HOME/.local/bin"
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
+  | bash -s -- --to "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Keep the PATH entry in `~/.bashrc` for future SSH sessions.
+
 ## Start setup, disconnect, return
 
 From the already cloned repository:

@@ -1,144 +1,100 @@
-# NeuroMinds Prototype 1
+# NeuroMinds Prototype 00
 
-A compiler-directed Inspector–Executor experiment for one CPU linear projection,
-`Y = X W^T`. Both paths share real packed group-wise W4 weights:
+Prototype 00 evaluates adaptive activation quantization for a single CPU linear
+projection, `Y = XWᵀ`. The runtime inspects each input and selects one of two
+compiled executors. Both use the same packed 4-bit weights (W4).
 
-- **W4 + BF16:** BF16 activation storage with FP32 arithmetic.
-- **W4 + A8:** INT8 activations, unpacked signed INT4 weights, INT32 per-group
-  accumulation, followed by FP32 scaling.
+| Executor | Activation storage | Arithmetic |
+| --- | --- | --- |
+| W4/A8 | Signed INT8 | INT32 group dot products, followed by FP32 scaling and accumulation |
+| W4/BF16 | BF16 | FP32 arithmetic with dequantized W4 weights |
 
-The full build uses a torch-mlir FX frontend, generated packed-W4 MLIR loops,
-a custom `nm-prepare-executors` MLIR pass that generates the runtime risk guard,
-and MLIR → LLVM IR → native object lowering. Activation inspection, typed plans,
-bounded caching and conservative fallback are implemented in C++.
+## Architecture
 
-**Status:** no builds or tests run on the Windows authoring PC. The supplied VM
-workflow has now reached benchmark execution and saved its CSV measurements.
-It then failed in report formatting; that defect is corrected in source, and
-the report can be regenerated from the existing run without repeating the
-benchmark. Detailed raw artifacts and full validation output remain to be reviewed.
+![Compiler preparation and offline calibration produce native kernels and a frozen policy.](docs/figures/compiler-and-calibration.svg)
 
-## Project-local dependencies
+The torch-mlir frontend imports and checks a bias-free PyTorch projection.
+Templates emit the two quantized kernels. The custom MLIR pass validates their
+interfaces and emits the risk predicate. LLVM compiles both kernels and the
+predicate ahead of time. Offline calibration measures error and latency and saves
+the activation scale, risk limits, and timing estimates in a frozen policy.
 
-This checkout owns its environment. No other project's venv or
-`~/tools/torch-mlir` is automatically reused:
+![The inspector measures the input, looks up a plan, and checks risk, cost, and plan validity before dispatch.](docs/figures/runtime-dispatch.svg)
 
-```text
-.venv/                         prototype Python packages
-.deps/host/                    Python 3.11, GCC 13, CMake, Ninja and linker
-.deps/torch-mlir/               pinned torch-mlir source + matching LLVM submodule
-.deps/torch-mlir/build/         prototype LLVM/MLIR tools and Python bindings
-.deps/bootstrap/               local micromamba, exact package lists and hashes
-.deps/mamba-root/              local package cache
-```
+Each call measures the current activations, looks up a cached plan, and checks
+whether A8 meets the calibrated risk and cost criteria. A plan may be reused
+after these checks. The executor uses BF16 when A8 is unsuitable. See the
+[architecture notes](docs/ARCHITECTURE.md) for the cache, validity checks, and
+fallback rules.
 
-Ubuntu 20.04's stock GCC/Python remain installed. Setup obtains a newer
-user-space toolchain through project-local micromamba, creates `.venv`, installs
-the pinned upstream Python requirements there, then builds this project's own
-LLVM/MLIR/torch-mlir. It does not change shell startup files or system packages.
-Build parallelism defaults to four jobs with one linker job.
-For a larger VM, `just setup-fast 16 2` starts detached setup with 16 build jobs
-and two concurrent link jobs. See the setup guide before changing an active job.
+## Benchmark results
 
-## First setup on the VM
+One Ubuntu 20.04 run on an Intel Xeon E7-4820 v3 used one CPU thread, batch size
+1, 512 input features, 256 output features, and weight groups of 32. The policy
+was fitted on 64 synthetic inputs. Evaluation used 16 separate synthetic
+inputs with 15 timed repetitions per mode. All six automated tests in that run
+passed.
 
-After cloning this repository using your configured GitHub authentication:
+| Mode | Mean latency (µs) | Mean relative L2 vs W4 reference |
+| --- | ---: | ---: |
+| FP32 reference | 475.52 | 9.656% |
+| Static W4/BF16 | 2,853.68 | 0.156% |
+| Static W4/A8 | 566.50 | 47.824% |
+| Adaptive W4/A8 or W4/BF16 | 2,240.31 | 0.305% |
+| Adaptive with risk guard disabled | 569.53 | 47.824% |
+
+Adaptive execution reduced mean latency by **21.5%** compared with static
+W4/BF16. The FP32 C++ reference was the fastest measured mode. The guard accepted
+all four held-out inputs that met the 3% A8 error budget and rejected all twelve
+that exceeded it.
+
+The 3% budget uses the same W4 weights with FP32 activations as its reference.
+Against the original FP32 projection, the adaptive output had **9.71%** mean
+relative L2 error. These measurements cover one synthetic operator workload on
+one CPU. Model quality, GPU performance, and energy use are outside this
+evaluation.
+
+[Run summary][summary] · [Raw measurements][benchmark] · [Build and test log][log]
+
+## Run on an Ubuntu VM
+
+The VM needs `just`, tmux, Git, curl, tar, bzip2, CA certificates, and system
+Python 3.8 or later. See the [setup guide](docs/UBUNTU_20_04.md) for installation
+and troubleshooting. Start the one-time toolchain setup from the repository root.
 
 ```bash
-cd ~/prototype-00
-git pull --ff-only
-sudo apt-get update
-sudo apt-get install -y git curl bzip2 ca-certificates tmux
-just setup
-```
-
-`just setup` opens the installation in a project-specific tmux session. Press
-**Ctrl+B, then D**, then close SSH if needed. For an immediate detached start,
-use `just setup-bg` instead.
-
-On reconnect:
-
-```bash
-cd ~/prototype-00
+just setup-bg
 just status
-just attach
 ```
 
-Wait until setup reports **succeeded, exit status 0**. Detaching is not setup
-completion. The first LLVM source build can take substantial time and disk;
-later setup attempts reuse completed stages and the incremental build.
-
-## Run the experiment and disconnect safely
-
-After setup succeeds:
+Setup builds LLVM, MLIR, and torch-mlir from source on the first run. It keeps
+dependencies under `.deps/` and `.venv/` in this checkout. Once setup reports
+`succeeded` with exit status `0`, launch the experiment.
 
 ```bash
-just run
+just start
 ```
 
-This builds the prototype, runs tests, calibrates a frozen policy, demonstrates
-ordinary → outlier → ordinary inputs, benchmarks disjoint held-out inputs and
-summarizes measured results. It stops at a failed step. It runs in tmux, matching
-the workflow in the `quant-sensitivity` reference justfile.
+The experiment builds the prototype, runs tests, calibrates the policy,
+demonstrates A8 → BF16 → A8 switching, and benchmarks held-out inputs. Both
+commands run in tmux and continue when the SSH session closes.
 
-Use `just start` to launch the same workflow detached and return immediately.
-Use `just attach` to return, `just status` for the saved exit code and log tail,
-or `just logs` to follow output without attaching. Ctrl+C in `just logs` closes
-the viewer and leaves the job running. `just stop` stops this project's native
-job and its child process group, retaining logs.
+| Command | Use |
+| --- | --- |
+| `just status` | Check the latest job and its exit status |
+| `just logs` | Follow the job log |
+| `just attach` | Reconnect to the tmux session. Press Ctrl+B, then D to detach. |
+| `just stop` | Stop the active job and retain its logs |
+| `just` | List all recipes |
 
-tmux protects against SSH disconnection, not VM shutdown/reboot or administrator
-process cleanup. The runner uses a dedicated socket per checkout and does not
-touch other projects' sessions. Only one managed job is allowed per checkout.
+Managed runs write to `results/jobs/<job-id>/experiment/` by default.
+Start with `summary.md` for the report, `benchmark.csv` for individual
+measurements, and `policy.nm` for the frozen calibration policy.
 
-## Commands
+## Further reading
 
-| Command | Purpose |
-|---|---|
-| `just` | List commands |
-| `just doctor` | Inspect project dependency status, OS, CPU/ISA, RAM, tools and GPU visibility |
-| `just setup` / `just setup-bg` | Set up isolated dependencies, attached/detached |
-| `just setup-fast 16 2` | Detached setup using more CPU parallelism |
-| `just run` / `just start` | Full experiment, attached/detached |
-| `just attach` / `just fg` | Reconnect to the latest job |
-| `just status` / `just logs` / `just jobs` | Inspect actual state, output and history |
-| `just stop` | Stop this project's job, retaining its logs |
-| `just pull` | Update source, refusing while a project job is active |
-| `just setup-fg` / `just all` | Foreground setup/full workflow with direct exit codes |
-| `just build` / `just test` | Foreground build and automated correctness tests |
-| `just calibrate` / `just demo` / `just bench` | Foreground individual experiment stages |
-| `just background build` | Run another supported task detached |
-| `just background sweep` | Independently calibrate/evaluate batches 1, 4, 8, 16 in the background |
-| `just projection --variant fp32` | Run one original FP32 reference projection |
-| `just projection --variant w4-reference` | Reference using actual W4 storage and FP32 activations |
-| `just projection --variant bf16` | Force BF16 with a calibrated policy |
-| `just projection --variant a8 --regime outliers` | Force A8; not evidence of adaptive selection |
-| `just projection --variant adaptive` | Run one guarded projection |
-| `just metadata` | Show compiled formats/configuration |
-| `just summarize results` | Summarize recorded measurements |
-| `just collect results/jobs/<job-id>` | Package logs, provenance and results for review |
-
-`just run` now means the full workflow. The previous single-projection command
-is `just projection`. The internal environment-aware CLI remains `./nm`.
-
-Arguments are preserved, including paths with spaces:
-
-```bash
-just start --batch 4 --input 512 --output 256 --group 32 --repeats 30
-```
-
-Full/sampled inspection, shape, backend and base seed must match calibration.
-Use a new job/policy when changing these. `just run --sampled` performs a separate
-sampled-inspection experiment. Foreground commands remain available for debugging.
-
-If `just` itself is missing on Ubuntu 20.04:
-
-```bash
-mkdir -p "$HOME/.local/bin"
-curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
-  | bash -s -- --to "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$PATH"
-```
+- [Numerical formats and error definitions](docs/NUMERICS.md)
+- [Mapping to the NeuroMinds research methodology](docs/METHODOLOGY_MAPPING.md)
 
 Keep that PATH entry in `~/.bashrc` for future sessions. See the
 [official installer](https://just.systems/man/en/pre-built-binaries.html).
@@ -234,3 +190,6 @@ Details: [Ubuntu setup and disconnect/reconnect](docs/UBUNTU_20_04.md),
 [methodology mapping](docs/METHODOLOGY_MAPPING.md),
 [results status](docs/PROTOTYPE_RESULTS.md), and
 [supervisor demonstration](docs/SUPERVISOR_DEMO.md).
+[summary]: results/jobs/20261117T173353858666Z-all/experiment/summary.md
+[benchmark]: results/jobs/20261117T173353858666Z-all/experiment/benchmark.csv
+[log]: results/jobs/20261117T173353858666Z-all/experiment/run.log
