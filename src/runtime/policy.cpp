@@ -2,6 +2,7 @@
 #include "neurominds/quantization.hpp"
 #include "nm_config.hpp"
 #include <cmath>
+#include "neurominds/risk_math.hpp"
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -9,7 +10,7 @@
 namespace nm {
 namespace {
 
-constexpr const char* policy_file_version = "NM_POLICY_V1";
+constexpr const char* policy_file_version = "NM_POLICY_V2";
 
 // Identify the serialized payload and detect accidental changes, not malicious tampering.
 std::uint64_t hash_text(const std::string& text) {
@@ -37,7 +38,7 @@ std::string payload(const Policy& policy) {
 
   // Fixed activation scale and fitted risk thresholds.
   output << policy.clip << ' ' << policy.scale << ' '
-         << policy.max_abs_limit << ' ' << policy.clipping_limit << '\n';
+         << policy.max_abs_limit << ' ' << policy.clipping_limit << ' ' << policy.reconstruction_limit << '\n';
 
   // Calibrated complete execution costs and overhead, all in microseconds.
   output << policy.bf16_us << ' ' << policy.a8_us << ' '
@@ -78,11 +79,16 @@ void fit_guard(Policy& policy, const std::vector<CalibrationRow>& rows) {
   policy.guard_enabled = false;
   policy.max_abs_limit = 0;
   policy.clipping_limit = 0;
+  policy.reconstruction_limit = 0;
 
   // 2. Safe calibration examples supply candidate maximum/clipping threshold values.
   std::vector<double> maximum_candidates;
   std::vector<double> clipping_candidates;
+  std::vector<risk_math::Observation> reconstruction_rows;
   for (const auto& row : rows) {
+    const auto& d = row.descriptor;
+    if (!risk_math::valid_feature(d.max_abs, d.clipping_fraction, d.reconstruction_error, d.observed)) continue;
+    reconstruction_rows.push_back({d.max_abs, d.clipping_fraction, d.reconstruction_error, row.a8_error});
     const bool a8_is_safe = std::isfinite(row.a8_error) && row.a8_error <= generated::error_budget;
     if (a8_is_safe) {
       maximum_candidates.push_back(row.descriptor.max_abs);
@@ -101,7 +107,9 @@ void fit_guard(Policy& policy, const std::vector<CalibrationRow>& rows) {
       std::size_t unsafe_count = 0;
 
       for (const auto& row : rows) {
-        const bool accepted = row.descriptor.max_abs <= maximum_limit &&
+        const auto& d = row.descriptor;
+        const bool accepted = risk_math::valid_feature(d.max_abs, d.clipping_fraction, d.reconstruction_error, d.observed) &&
+                              row.descriptor.max_abs <= maximum_limit &&
                               row.descriptor.clipping_fraction <= clipping_limit;
         if (!accepted) {
           continue;
@@ -128,7 +136,17 @@ void fit_guard(Policy& policy, const std::vector<CalibrationRow>& rows) {
       policy.guard_enabled = true;
       policy.max_abs_limit = maximum_limit;
       policy.clipping_limit = clipping_limit;
+      policy.reconstruction_limit = std::numeric_limits<double>::max();
     }
+  }
+  // Preserve the baseline rule on equal coverage.
+  const auto rounded = risk_math::best_reconstruction_rule(std::move(reconstruction_rows),
+      generated::error_budget, generated::minimum_guard_accepts, generated::max_calibration_false_safe_rate);
+  if (rounded.accepted > best_accepted_count) {
+    policy.guard_enabled = true;
+    policy.max_abs_limit = rounded.maximum;
+    policy.clipping_limit = rounded.clipping;
+    policy.reconstruction_limit = rounded.reconstruction;
   }
   // Passing finite calibration data is an empirical result, never a per-input quality guarantee.
 }
@@ -149,11 +167,12 @@ void validate_policy(const Policy& policy, bool require_environment) {
 
   // 2. A8 stores [-127,127], so scale must agree with clip/127 within a small relative tolerance.
   if (!std::isfinite(policy.clip) || !std::isfinite(policy.scale) || policy.clip <= 0 || policy.scale <= 0 ||
-      std::abs(static_cast<double>(policy.clip) / 127 - policy.scale) > static_cast<double>(policy.scale) * 1e-5) {
+      policy.scale != policy.clip / 127) {
     throw std::invalid_argument("inconsistent activation scale");
   }
   if (!std::isfinite(policy.max_abs_limit) || policy.max_abs_limit < 0 ||
-      !std::isfinite(policy.clipping_limit) || policy.clipping_limit < 0 || policy.clipping_limit > 1) {
+      !std::isfinite(policy.clipping_limit) || policy.clipping_limit < 0 || policy.clipping_limit > 1 ||
+      !std::isfinite(policy.reconstruction_limit) || policy.reconstruction_limit < 0) {
     throw std::invalid_argument("invalid calibrated guard");
   }
 
@@ -210,7 +229,7 @@ Policy load_policy(const std::string& path) {
   input >> version >> policy.id;
   input >> policy.config_hash >> policy.shape.batch >> policy.shape.input
         >> policy.shape.output >> policy.shape.group >> backend_value;
-  input >> policy.clip >> policy.scale >> policy.max_abs_limit >> policy.clipping_limit;
+  input >> policy.clip >> policy.scale >> policy.max_abs_limit >> policy.clipping_limit >> policy.reconstruction_limit;
   input >> policy.bf16_us >> policy.a8_us >> policy.inspection_us >> policy.decision_us
         >> policy.bf16_p95_us >> policy.a8_p95_us;
   input >> guard_value >> sampled_value >> policy.calibration_seed >> policy.calibration_count
