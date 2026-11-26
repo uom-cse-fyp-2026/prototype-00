@@ -52,7 +52,7 @@ Invocation Executor::execute(const std::vector<float>& input, const PackedWeight
       policy.sampled == current.sampled &&
       policy.id != 0 &&
       std::isfinite(policy.scale) && policy.scale > 0 &&
-      std::isfinite(policy.clip) && policy.clip > 0;
+      std::isfinite(policy.clip) && policy.clip > 0 && policy.scale == policy.clip / 127;
 
   const bool legal_plan =
       compatible_policy &&
@@ -113,7 +113,23 @@ Invocation Executor::adaptive(const std::vector<float>& input, const PackedWeigh
                               bool sampled, bool guard_disabled) {
   const auto invocation_start = Clock::now();
 
-  // 1. Inspect every invocation. A coarse cache bucket cannot certify the current input's risk.
+  // Skip inspection and cache lookup only when A8 cannot win even with zero inspection cost.
+  validate_shape(shape);
+  const bool effective_sampled = sampled && shape.inputs() > generated::sample_size;
+  const bool compatible = policy.shape == shape && policy.backend == backend &&
+      policy.config_hash == generated::config_hash && policy.sampled == effective_sampled &&
+      policy.id != 0 && generated::a8_approved && std::isfinite(policy.clip) && policy.clip > 0 &&
+      std::isfinite(policy.scale) && policy.scale == policy.clip / 127;
+  if (compatible && (policy.guard_enabled || guard_disabled) && !cost_accepts(Descriptor{}, policy, 0)) {
+    Descriptor skipped;
+    skipped.sampled = effective_sampled;
+    auto plan = make_plan(plan_key(shape, skipped, policy, backend, guard_disabled), Variant::Bf16);
+    auto result = execute(input, weights, shape, policy, backend, plan, skipped, guard_disabled);
+    if (result.reason.empty()) result.reason = "cost precheck rejected A8; risk not evaluated";
+    result.total_us = elapsed_us(invocation_start);
+    return result;
+  }
+  // 1. Inspect every potentially profitable invocation. A coarse cache bucket cannot certify current risk.
   const auto inspection_start = Clock::now();
   const auto descriptor = inspect(input, shape, policy.clip, sampled);
   const double inspector_us = elapsed_us(inspection_start);
