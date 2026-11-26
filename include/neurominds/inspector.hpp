@@ -8,7 +8,7 @@ namespace nm {
 Descriptor inspect(const std::vector<float>& input, const Shape& shape, float clip,
                    bool sampled = false);
 
-// Calibrated maximum/clipping predicate; empirical risk prediction, not quality certification.
+// Calibrated maximum/clipping/reconstruction predicate; empirical prediction, not quality certification.
 bool risk_accepts(const Descriptor& descriptor, const Policy& policy);
 
 // Require mean/p95 cost benefit including overhead. Descriptor is presently unused by the model.
