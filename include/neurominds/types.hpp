@@ -115,6 +115,7 @@ struct Descriptor {
   double percentile99 = 0;       // Nearest-rank p99 of observed magnitudes.
   double outlier_fraction = 0;   // Observed fraction with magnitude >0.75*clip.
   double clipping_fraction = 0;  // Observed fraction with magnitude >clip.
+  double reconstruction_error = 0; // Relative L2 error of reconstructed inspected activations.
 
   std::size_t observed = 0;
   std::size_t bytes_read = 0;  // Observed FP32 payload only; excludes later full scans.
@@ -133,6 +134,7 @@ struct Policy {
   float scale = 1.0f / 127;  // Fixed A8 scale = clip/127; never refitted per invocation.
   double max_abs_limit = 0;
   double clipping_limit = 0;
+  double reconstruction_limit = std::numeric_limits<double>::max();
 
   // Calibration means for complete forced variants and runtime overhead, in microseconds.
   double bf16_us = 0;
