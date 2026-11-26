@@ -1,49 +1,62 @@
 #pragma once
 #include "inspector.hpp"
 #include <deque>
+
 namespace nm {
-// Bounded FIFO cache of plans. Reusing a plan never skips adaptive()'s current inspection/selection.
+
+// Bounded FIFO cache. A hit never skips adaptive()'s fresh inspection/risk/cost decision.
 class PlanCache {
  public:
-  // Capacity must lie in [1,4096]; Executor's normal default is 16 entries.
-  explicit PlanCache(std::size_t capacity);
-  // Return true and fill the output Plan on a matching key with a consistent checksum.
-  bool find(const PlanKey&, Plan&, Counters&);
-  // Update a matching entry or append a new one, evicting the oldest insertion if necessary.
-  void put(const Plan&, Counters&);
-  // Remove plans belonging to a different compiled configuration or policy.
-  void invalidate(std::uint64_t config, std::uint64_t policy, Counters&);
-  std::size_t size() const { return entries_.size(); }
+  explicit PlanCache(std::size_t capacity);  // Valid range: [1,4096].
+
+  // On a key/checksum match, copy the candidate into output and return true.
+  bool find(const PlanKey& key, Plan& output, Counters& counters);
+  void put(const Plan& plan, Counters& counters);
+  void invalidate(std::uint64_t config_hash, std::uint64_t policy_id, Counters& counters);
+
+  std::size_t size() const {
+    return entries_.size();
+  }
+
  private:
   std::size_t capacity_;
-  // Front is oldest, back is newest; lookups do not reorder entries as an LRU cache would.
-  std::deque<Plan> entries_;
+  std::deque<Plan> entries_;  // Oldest insertion at front; hits do not reorder entries.
 };
-// Stateful runtime for one thread. Policy/weights must remain fixed for their calibration contract.
+
+// Stateful runtime for one thread, assuming immutable calibrated policy/weight contents.
 class Executor {
  public:
   explicit Executor(std::size_t capacity = 16);
-  // Normal entry point: inspect input, recheck support/risk/cost, select/reuse plan, then execute.
-  // guard_disabled is an evaluation-only risk ablation; it does not bypass cost/tensor checks.
-  Invocation adaptive(const std::vector<float>&, const PackedWeights&, const Shape&, const Policy&, Backend,
+
+  // Normal path: inspect -> lookup -> decide -> update plan -> validate/execute -> report.
+  // guard_disabled is an evaluation ablation, not a bypass of cost or tensor validation.
+  Invocation adaptive(const std::vector<float>& input, const PackedWeights& weights,
+                      const Shape& shape, const Policy& policy, Backend backend,
                       bool sampled = false, bool guard_disabled = false);
-  // Lower-level entry: validate a supplied plan and dispatch, repairing invalid plans to BF16.
-  // Caller must supply a fresh Descriptor for this input; this method does not rerun inspect().
-  // Full cost selection occurs in adaptive(), not here. Malformed tensors still raise errors.
-  Invocation execute(const std::vector<float>&, const PackedWeights&, const Shape&, const Policy&, Backend,
+
+  // Lower-level dispatch: caller supplies the plan and a fresh descriptor for this input.
+  // Does not rerun inspect() or cost selection. Invalid plans fall back; broken tensors raise errors.
+  Invocation execute(const std::vector<float>& input, const PackedWeights& weights,
+                     const Shape& shape, const Policy& policy, Backend backend,
                      Plan plan, const Descriptor& current, bool guard_disabled = false);
-  // Lifetime totals for this Executor, returned by const reference so callers cannot modify them.
-  const Counters& counters() const { return counters_; }
+
+  const Counters& counters() const {
+    return counters_;
+  }
+
  private:
   PlanCache cache_;
   Counters counters_;
 };
-// Full structural/numerical validation; environment matching is enabled except for explicit callers.
-void validate_policy(const Policy&, bool require_environment = true);
-// Persist a checksummed policy. Reload it to obtain the saved payload's checksum-derived ID.
-void save_policy(const Policy&, const std::string& path);
-// Reject malformed, changed or environment-incompatible policy files before inference.
+
+// Full policy validation at load/calibration, including environment identity by default.
+void validate_policy(const Policy& policy, bool require_environment = true);
+
+// Persist the canonical payload/checksum. Reload to obtain the saved policy ID in memory.
+void save_policy(const Policy& policy, const std::string& path);
 Policy load_policy(const std::string& path);
-// Recorded CPU/OS/code/compiler identity used to detect policies from a different environment.
+
+// Recorded CPU/OS/code/compiler identity; changing scheduler load is deliberately excluded.
 std::string environment_key();
-}
+
+}  // namespace nm

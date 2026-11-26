@@ -1,43 +1,70 @@
 #include "neurominds/runtime.hpp"
+
 namespace nm {
-// Store a bounded number of small execution plans, not outputs, weights or native kernels.
+
+// Store small execution plans, not weights, numerical outputs or compiled kernels.
 PlanCache::PlanCache(std::size_t capacity) : capacity_(capacity) {
-  // Refuse an empty cache and bound memory/linear-lookup work even for custom capacities.
-  if (!capacity || capacity > 4096) throw std::invalid_argument("cache capacity outside [1,4096]");
-}
-// output is an out-parameter: a valid hit copies its plan into the caller's object.
-bool PlanCache::find(const PlanKey& key, Plan& output, Counters& counters) {
-  // Linear search is simple for this small FIFO cache (default capacity 16).
-  for (auto it = entries_.begin(); it != entries_.end(); ++it) {
-    if (it->key == key) {
-      // A matching key is insufficient when the stored plan's own fields are inconsistent.
-      if (it->validity_key != validity_key(*it)) {
-        // A corrupted matching entry counts as an invalidation and a miss, never as a hit.
-        entries_.erase(it); ++counters.invalidations; ++counters.misses; return false;
-      }
-      // A hit does not move the entry: replacement order is FIFO, not least-recently-used (LRU).
-      // Executor::adaptive still rechecks the current exact risk and cost after this lookup.
-      output = *it; ++counters.hits; return true;
-    }
+  if (capacity == 0 || capacity > 4096) {
+    throw std::invalid_argument("cache capacity outside [1,4096]");
   }
-  // No compatible entry was found; the caller must construct a current plan.
+}
+
+bool PlanCache::find(const PlanKey& key, Plan& output, Counters& counters) {
+  // Linear lookup is adequate for the small bounded cache (default 16 entries).
+  for (auto entry = entries_.begin(); entry != entries_.end(); ++entry) {
+    if (!(entry->key == key)) {
+      continue;
+    }
+
+    // Matching key, but inconsistent plan: discard it and report a miss.
+    if (entry->validity_key != validity_key(*entry)) {
+      entries_.erase(entry);
+      ++counters.invalidations;
+      ++counters.misses;
+      return false;
+    }
+
+    // Copy the candidate to the caller. Hits never refresh FIFO insertion order.
+    output = *entry;
+    ++counters.hits;
+    return true;
+  }
+
   ++counters.misses;
   return false;
 }
+
 void PlanCache::put(const Plan& plan, Counters& counters) {
-  // Update a same-key plan in place, preserving its original FIFO position.
-  for (auto& entry : entries_) if (entry.key == plan.key) { entry = plan; return; }
-  // When full, evict the oldest inserted entry. Evictions share the invalidations counter.
-  if (entries_.size() == capacity_) { entries_.pop_front(); ++counters.invalidations; }
-  entries_.push_back(plan); // deterministic FIFO, not an assumed token reuse horizon
+  // Replace an existing key in place, preserving its original FIFO position.
+  for (auto& entry : entries_) {
+    if (entry.key == plan.key) {
+      entry = plan;
+      return;
+    }
+  }
+
+  // A new key at capacity evicts the oldest insertion. This is FIFO, not LRU.
+  if (entries_.size() == capacity_) {
+    entries_.pop_front();
+    ++counters.invalidations;
+  }
+
+  entries_.push_back(plan);
 }
-// Remove entries built under another compiled configuration or frozen policy.
-// Other key differences, such as shape/backend/bucket, naturally fail equality in find().
-void PlanCache::invalidate(std::uint64_t config, std::uint64_t policy, Counters& counters) {
-  for (auto it = entries_.begin(); it != entries_.end();) {
-    // erase returns the next iterator; incrementing it again here would skip an entry.
-    if (it->key.config_hash != config || it->key.policy_id != policy) { it = entries_.erase(it); ++counters.invalidations; }
-    else ++it;
+
+void PlanCache::invalidate(std::uint64_t config_hash, std::uint64_t policy_id, Counters& counters) {
+  for (auto entry = entries_.begin(); entry != entries_.end();) {
+    const bool same_config = entry->key.config_hash == config_hash;
+    const bool same_policy = entry->key.policy_id == policy_id;
+
+    if (!same_config || !same_policy) {
+      // erase already returns the next iterator; incrementing again would skip an entry.
+      entry = entries_.erase(entry);
+      ++counters.invalidations;
+    } else {
+      ++entry;
+    }
   }
 }
-}
+
+}  // namespace nm
