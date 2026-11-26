@@ -1,0 +1,7 @@
+NM_MODEL_V1 2
+linear 4 3 relu bias
+1 -1 0 1 0 2 1 0 -1 0 1 0 
+0 1 -1 
+linear 3 2 identity bias
+1 0 -1 0 -2 1 
+0.5 -0.5 
