@@ -2,13 +2,15 @@
 #include "neurominds/quantization.hpp"
 #include "nm_config.hpp"
 #include <cmath>
+#include <array>
+#include "neurominds/risk_math.hpp"
 
 namespace nm {
 
 #if NM_HAS_MLIR
 // C entry point emitted by the MLIR pass: observed max/clipping, their limits, enabled flag.
 // The feature scan is C++; this small predicate is compiler-generated.
-extern "C" std::int32_t _mlir_ciface_nm_risk_guard(double, double, double, double, std::int32_t);
+extern "C" std::int32_t _mlir_ciface_nm_risk_guard(double, double, double, double, double, double, std::int32_t);
 #endif
 
 namespace {
@@ -46,8 +48,14 @@ Descriptor inspect(const std::vector<float>& input, const Shape& shape, float cl
   descriptor.observed = observed_count;
   descriptor.bytes_read = observed_count * sizeof(float);  // Activation payload bytes only.
 
-  std::vector<double> magnitudes;
-  magnitudes.reserve(observed_count);  // Temporary storage needed for p99 selection.
+  // Avoid heap allocation for small inspected tensors.
+  std::array<double, 256> small_magnitudes;
+  std::vector<double> large_magnitudes;
+  if (observed_count > small_magnitudes.size()) large_magnitudes.resize(observed_count);
+  double* magnitudes = observed_count <= small_magnitudes.size() ? small_magnitudes.data() : large_magnitudes.data();
+  const float scale = clip / 127;
+  if (!std::isfinite(scale) || scale <= 0) throw std::invalid_argument("invalid inspector scale");
+  risk_math::Reconstruction reconstruction;
 
   std::size_t clipping_count = 0;
   std::size_t outlier_count = 0;
@@ -68,7 +76,8 @@ Descriptor inspect(const std::vector<float>& input, const Shape& shape, float cl
 
     descriptor.max_abs = std::max(descriptor.max_abs, magnitude);
     magnitude_sum += magnitude;
-    magnitudes.push_back(magnitude);
+    magnitudes[sample] = magnitude;
+    reconstruction.add(magnitude, scale);
 
     if (magnitude > clip) {
       ++clipping_count;  // A value exactly at clip is still inside the A8 range.
@@ -86,8 +95,9 @@ Descriptor inspect(const std::vector<float>& input, const Shape& shape, float cl
   // Nearest-rank p99: subtract one to turn the one-based rank into a vector index.
   const auto percentile_index = static_cast<std::size_t>(std::ceil(observed_count * 0.99)) - 1;
   // Place the desired rank at that index without fully sorting the magnitude array.
-  std::nth_element(magnitudes.begin(), magnitudes.begin() + percentile_index, magnitudes.end());
+  std::nth_element(magnitudes, magnitudes + percentile_index, magnitudes + observed_count);
   descriptor.percentile99 = magnitudes[percentile_index];
+  descriptor.reconstruction_error = reconstruction.relative();
 
   // 5. Add the coarse reuse key. p99/outlier_fraction are diagnostics, not guard/key inputs.
   descriptor.bucket = feature_bucket(descriptor, clip);
@@ -96,10 +106,8 @@ Descriptor inspect(const std::vector<float>& input, const Shape& shape, float cl
 
 // An empirical prediction, not proof that the current output meets the quality budget.
 bool risk_accepts(const Descriptor& descriptor, const Policy& policy) {
-  const bool valid_descriptor = descriptor.observed != 0 &&
-      std::isfinite(descriptor.max_abs) && std::isfinite(descriptor.clipping_fraction) &&
-      descriptor.max_abs >= 0 && descriptor.clipping_fraction >= 0 &&
-      descriptor.clipping_fraction <= 1;
+  const bool valid_descriptor = risk_math::valid_feature(descriptor.max_abs,
+      descriptor.clipping_fraction, descriptor.reconstruction_error, descriptor.observed);
 
   if (!valid_descriptor) {
     return false;
@@ -109,32 +117,22 @@ bool risk_accepts(const Descriptor& descriptor, const Policy& policy) {
   if (policy.backend == Backend::Mlir) {
     // The compiled predicate uses i32 for booleans; any nonzero result means accepted.
     return _mlir_ciface_nm_risk_guard(
-        descriptor.max_abs, descriptor.clipping_fraction,
-        policy.max_abs_limit, policy.clipping_limit, policy.guard_enabled ? 1 : 0) != 0;
+        descriptor.max_abs, descriptor.clipping_fraction, descriptor.reconstruction_error,
+        policy.max_abs_limit, policy.clipping_limit, policy.reconstruction_limit,
+        policy.guard_enabled ? 1 : 0) != 0;
   }
 #endif
 
   // Equivalent scalar predicate. All conditions must hold; comparisons include the limits.
   return policy.guard_enabled && descriptor.max_abs <= policy.max_abs_limit &&
-         descriptor.clipping_fraction <= policy.clipping_limit;
+         descriptor.clipping_fraction <= policy.clipping_limit &&
+         descriptor.reconstruction_error <= policy.reconstruction_limit;
 }
 
 // Descriptor is intentionally unused: execution costs come from the frozen shape/backend policy.
 bool cost_accepts(const Descriptor&, const Policy& policy, double inspection_us) {
-  if (!std::isfinite(inspection_us) || inspection_us < 0 || policy.a8_us <= 0 || policy.bf16_us <= 0) {
-    return false;
-  }
-
-  // Charge this call's inspection plus the calibrated estimate of decision/cache overhead.
-  const double overhead_us = inspection_us + policy.decision_us;
-  const double a8_mean_with_overhead = policy.a8_us + overhead_us;
-  const double a8_p95_with_overhead = policy.a8_p95_us + overhead_us;
-
-  // Default mean margin is 5%; the p95 condition has no additional percentage margin.
-  const double mean_cost_limit = policy.bf16_us * (1 - generated::performance_margin);
-  const bool mean_is_better = a8_mean_with_overhead < mean_cost_limit;
-  const bool p95_is_better = a8_p95_with_overhead < policy.bf16_p95_us;
-  return mean_is_better && p95_is_better;
+  return risk_math::profitable(policy.bf16_us, policy.a8_us, policy.bf16_p95_us,
+      policy.a8_p95_us, inspection_us, policy.decision_us, generated::performance_margin);
 }
 
 PlanKey plan_key(const Shape& shape, const Descriptor& descriptor, const Policy& policy,
