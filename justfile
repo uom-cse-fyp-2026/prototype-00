@@ -55,6 +55,14 @@ calibrate *args:
 demo *args:
     @bash ./nm demo "$@"
 
+# Calibrate and benchmark an exported sequential model with the built runtime.
+model-run *args:
+    @bash ./nm model-run "$@"
+
+# Run guarded inference with a saved model run and an input tensor file.
+model-infer *args:
+    @bash ./nm model-infer "$@"
+
 # Build/test/calibrate/demo/benchmark in tmux, like the quant-sensitivity workflow.
 run *args:
     @/usr/bin/python3 tools/jobs.py start all "$@"

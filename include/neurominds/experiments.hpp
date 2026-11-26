@@ -1,5 +1,6 @@
 #pragma once
 #include "runtime.hpp"
+#include <functional>
 namespace nm {
 struct Options {
   Shape shape;
@@ -18,6 +19,9 @@ std::vector<float> synthetic_weights(const Shape&, std::uint64_t seed);
 std::uint64_t split_seed(std::uint64_t base, bool held_out, std::size_t index);
 void fit_guard(Policy&, const std::vector<CalibrationRow>&);
 Policy calibrate(const Options&);
+// Each call supplies the activations observed at this layer for the named regime/seed.
+using CalibrationInput = std::function<std::vector<float>(const std::string&, std::uint64_t)>;
+Policy calibrate_layer(const Options&, const PackedWeights&, const CalibrationInput&);
 void demonstrate(const Options&);
 void benchmark(const Options&);
 void projection(const Options&);

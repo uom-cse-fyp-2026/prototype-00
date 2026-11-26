@@ -224,6 +224,79 @@ void bounded_cache() {
   CHECK(c.size() == 0);
   rejects([] { nm::PlanCache invalid(0); });
 }
+void cost_guard_boundaries() {
+  auto policy = fixture({1, 64, 8, 32}, nm::Backend::Scalar);
+  policy.bf16_us = 100;
+  policy.a8_us = 70;
+  policy.bf16_p95_us = 120;
+  policy.a8_p95_us = 85;
+  policy.decision_us = 2;
+  nm::Descriptor descriptor;
+
+  CHECK(nm::cost_accepts(descriptor, policy, 8));
+
+  // Equal to the 5% mean-improvement boundary is insufficient: the rule is strict.
+  policy.a8_us = 85;
+  CHECK(!nm::cost_accepts(descriptor, policy, 8));
+
+  // A mean improvement alone must not override a failed tail-latency condition.
+  policy.a8_us = 70;
+  policy.a8_p95_us = 110;
+  CHECK(!nm::cost_accepts(descriptor, policy, 8));
+  CHECK(!nm::cost_accepts(descriptor, policy, -1));
+  CHECK(!nm::cost_accepts(descriptor, policy, std::numeric_limits<double>::quiet_NaN()));
+}
+void fifo_hit_preserves_eviction_order() {
+  nm::PlanCache cache(2);
+  nm::Counters counters;
+  nm::Plan first;
+  first.key.feature_bucket = 1;
+  first.validity_key = nm::validity_key(first);
+
+  auto second = first;
+  second.key.feature_bucket = 2;
+  second.validity_key = nm::validity_key(second);
+  auto third = first;
+  third.key.feature_bucket = 3;
+  third.validity_key = nm::validity_key(third);
+
+  cache.put(first, counters);
+  cache.put(second, counters);
+  nm::Plan found;
+  CHECK(cache.find(first.key, found, counters));
+  cache.put(third, counters);
+
+  // Unlike LRU, hitting the first insertion does not protect it from FIFO eviction.
+  CHECK(!cache.find(first.key, found, counters));
+  CHECK(cache.find(second.key, found, counters));
+  CHECK(cache.find(third.key, found, counters));
+  CHECK(cache.size() == 2 && counters.invalidations == 1);
+}
+void guard_candidate_grid() {
+  std::vector<nm::CalibrationRow> rows;
+  for (unsigned i = 0; i < 130; ++i) {
+    nm::Descriptor descriptor;
+    descriptor.observed = 100;
+    descriptor.max_abs = 1 + i * .01;
+    descriptor.clipping_fraction = i * .001;
+    rows.push_back({descriptor, .001, .001});
+  }
+
+  // More than 64 distinct candidates exercises bounded-grid fitting, including both endpoints.
+  nm::Policy policy;
+  nm::fit_guard(policy, rows);
+  CHECK(policy.guard_enabled);
+  CHECK(policy.max_abs_limit == rows.back().descriptor.max_abs);
+  CHECK(policy.clipping_limit == rows.back().descriptor.clipping_fraction);
+  for (const auto& row : rows) {
+    CHECK(nm::risk_accepts(row.descriptor, policy));
+  }
+
+  // Every useful threshold pair also accepts this indistinguishable unsafe example.
+  rows.push_back({rows.front().descriptor, .8, .001});
+  nm::fit_guard(policy, rows);
+  CHECK(!policy.guard_enabled && policy.max_abs_limit == 0 && policy.clipping_limit == 0);
+}
 void policy_roundtrip() {
   auto p = fixture({1, 64, 8, 32}, nm::Backend::Scalar);
   auto path = std::filesystem::temp_directory_path() / ("nm-policy-" + std::to_string(nm::Clock::now().time_since_epoch().count()) + ".nm");
@@ -248,7 +321,10 @@ int main() {
     {"deterministic disjoint splits", deterministic_splits}, {"implementation correctness differs from quantization quality", quality_is_separate},
     {"scalar dispatch, reuse, invalidation and safe fallback", [] { cache_and_executor(nm::Backend::Scalar); }},
     {"cache hit still rechecks current guard", same_bucket_rechecks_guard}, {"bounded cache eviction", bounded_cache},
-    {"versioned policy roundtrip and rejection", policy_roundtrip}
+    {"versioned policy roundtrip and rejection", policy_roundtrip},
+    {"strict mean and p95 cost boundaries", cost_guard_boundaries},
+    {"FIFO hits preserve eviction order", fifo_hit_preserves_eviction_order},
+    {"bounded calibration grid and indistinguishable unsafe input", guard_candidate_grid}
   };
   if (nm::mlir_available()) {
     tests.push_back({"MLIR/LLVM kernels vs scalar and independent references", [] { kernels(nm::Backend::Mlir); }});

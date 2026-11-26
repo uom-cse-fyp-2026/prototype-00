@@ -99,10 +99,15 @@ std::vector<float> synthetic_input(const Shape& s, const std::string& regime, st
 }
 Policy calibrate(const Options& o) {
   check_options(o);
+  const auto weights = quantize_weights(synthetic_weights(o.shape, o.seed), o.shape);
+  return calibrate_layer(o, weights, [&](const std::string& regime, std::uint64_t seed) {
+    return synthetic_input(o.shape, regime, seed);
+  });
+}
+Policy calibrate_layer(const Options& o, const PackedWeights& weights, const CalibrationInput& input) {
+  check_options(o);
   if (o.samples < generated::minimum_guard_accepts) throw std::invalid_argument("too few calibration samples");
   directory(o.output);
-  const auto original = synthetic_weights(o.shape, o.seed);
-  const auto weights = quantize_weights(original, o.shape);
   Policy p;
   p.config_hash = generated::config_hash; p.shape = o.shape; p.backend = o.backend;
   p.sampled = o.sampled && o.shape.inputs() > generated::sample_size;
@@ -111,14 +116,14 @@ Policy calibrate(const Options& o) {
   // Scale fitting uses typical calibration inputs only, separate from held-out evaluation.
   const std::size_t cap = 65536;
   for (std::size_t i = 0; i < 16 && magnitudes.size() < cap; ++i) {
-    const auto x = synthetic_input(o.shape, "normal", split_seed(o.seed, false, 100000 + i));
+    const auto x = input("normal", split_seed(o.seed, false, 100000 + i));
     const auto take = std::min(x.size(), cap - magnitudes.size());
     for (std::size_t j = 0; j < take; ++j) magnitudes.push_back(std::abs(x[j * x.size() / take]));
   }
   std::sort(magnitudes.begin(), magnitudes.end());
   const auto qi = static_cast<std::size_t>(std::ceil(magnitudes.size() * generated::activation_quantile)) - 1;
   p.clip = std::max(magnitudes[qi], 1e-6f); p.scale = p.clip / 127;
-  auto warm_input = synthetic_input(o.shape, "normal", split_seed(o.seed, false, 200000));
+  auto warm_input = input("normal", split_seed(o.seed, false, 200000));
   for (std::size_t i = 0; i < o.warmup; ++i) for (auto v : {Variant::Bf16, Variant::A8})
     consume(forced(warm_input, weights, o.shape, v, p.scale, o.backend).output);
   std::ofstream csv(o.output + "/calibration.csv");
@@ -132,7 +137,7 @@ Policy calibrate(const Options& o) {
   std::vector<double> bf16_times, a8_times, inspector_times;
   for (std::size_t i = 0; i < o.samples; ++i) {
     const auto seed = split_seed(o.seed, false, i);
-    const auto x = synthetic_input(o.shape, regime_for(i), seed);
+    const auto x = input(regime_for(i), seed);
     const auto reference = w4_reference(x, weights, o.shape);
     const auto start = Clock::now();
     auto d = inspect(x, o.shape, p.clip, o.sampled);
