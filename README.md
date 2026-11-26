@@ -145,6 +145,54 @@ Keep that PATH entry in `~/.bashrc` for future sessions. See the
 
 ## Results and compiler artifacts
 
+### Run a small model
+
+The model workflow accepts a chain of up to 16 dense Linear layers, each with
+optional bias and ReLU, and at most 1,000,000 parameters. It packs the supplied
+weights into W4 and calibrates each layer using activations from the upstream
+BF16 model. Evaluation uses fresh synthetic inputs and propagates the actual
+chosen outputs between layers. The compiler still prepares the existing linear
+kernels ahead of time. The C++ runtime composes those kernels into the model.
+
+On the configured Ubuntu VM, try the included two-layer example:
+
+```bash
+just build
+just model-run --model examples/tiny_mlp.txt --results results/tiny-mlp --repeats 5
+just model-infer --results results/tiny-mlp --input-file examples/tiny_mlp_input.txt
+```
+
+Choose a fresh results directory per run. Use `--backend scalar` on
+`model-run` for a scalar-only build. Inference loads the saved model snapshot
+and layer policies, then takes whitespace-separated FP32 input values in
+row-major order. The input file must contain exactly batch × first-layer-width
+values. It prints output rows on standard output and layer decisions on
+standard error. Build changes require calibrating a fresh run.
+
+To supply your own model, use the helper from your model's Python code at the
+repository root, after loading its weights:
+
+```python
+from tools.export_model import export_sequential
+
+# model is a torch.nn.Sequential of Linear and optional ReLU modules.
+export_sequential(model.eval(), "my-model.txt")
+```
+
+The text format starts with `NM_MODEL_V1 <layer-count>`. Each layer starts
+with `linear <input-width> <output-width> <relu|identity> <bias|no_bias>`,
+followed by the FP32 weight matrix in output-row-major order and, if declared,
+one bias per output feature.
+
+The results directory contains `model_benchmark.csv` for complete-forward
+latency and relative output error against the original FP32 model,
+`model_decisions.csv` for each adaptive layer's choice and reason, and
+`layer-*/` for the original calibration artifacts and frozen policies.
+The 3% calibration budget applies to the individual linear operation against
+its W4 reference. Final output error is measured separately. Synthetic
+evaluation characterizes this small model on these inputs. Transformer graphs,
+tokenization, and task accuracy are outside this workflow.
+
 Default managed runs save their console log and actual exit code in
 `results/jobs/<job-id>/`. Full experiments put measurements in its `experiment/`
 subdirectory: raw calibration/benchmark CSVs, frozen policy, guard metrics,

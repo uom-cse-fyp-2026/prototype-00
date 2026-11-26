@@ -62,7 +62,7 @@ endif()
 add_library(neurominds
   src/quantization/quantization.cpp src/kernels/kernels.cpp src/inspector/inspector.cpp
   src/runtime/policy.cpp src/runtime/cache.cpp src/executor/executor.cpp
-  src/benchmark/experiments.cpp src/runtime/io.cpp ${MLIR_OBJECT})
+  src/benchmark/experiments.cpp src/model/model.cpp src/runtime/io.cpp ${MLIR_OBJECT})
 add_dependencies(neurominds nm_generated)
 target_include_directories(neurominds PUBLIC include "${GEN}")
 target_compile_definitions(neurominds PUBLIC NM_HAS_MLIR=$<BOOL:${NM_ENABLE_MLIR}>
@@ -83,6 +83,8 @@ if(BUILD_TESTING)
   add_executable(neurominds_tests tests/test_core.cpp)
   target_link_libraries(neurominds_tests PRIVATE neurominds)
   add_test(NAME numerical_and_runtime COMMAND neurominds_tests)
+  add_test(NAME model_workflow COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_model.py"
+    "$<TARGET_FILE:neurominds_demo>" "${CMAKE_SOURCE_DIR}/examples")
   add_test(NAME generator_validation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_generator.py")
   add_test(NAME vm_job_control COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_jobs.py")
   add_test(NAME benchmark_report COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_summary.py")

@@ -230,7 +230,7 @@ def main():
         return
     os.chdir(ROOT)
     if command in ("help", "--help", "-h"):
-        print(__doc__ + "\n\n./nm doctor | setup | build | test | calibrate | demo | run | bench | summarize | all | sweep | collect\n"
+        print(__doc__ + "\n\n./nm doctor | setup | build | test | calibrate | demo | run | bench | model-run | model-infer | summarize | all | sweep | collect\n"
               "Append --container to use the optional Ubuntu 24.04 compiler image on the Ubuntu 20.04 host.\n"
               "Dependencies are local to this checkout: .venv and .deps.\n"
               "Use just setup/run for tmux; just setup-bg/start to detach immediately; just attach/status/stop.\n"
